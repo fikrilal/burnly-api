@@ -300,9 +300,12 @@ batch audit rows with correct uniqueness.
 - [ ] Invalid identity/cost → `400`, no partial write
 - [ ] Unknown/expired token → `401`, no write
 
-**Later exec-plan shape:**  
-`YYYY-MM-DD_usage-sync-02-device-api.md`  
-`YYYY-MM-DD_usage-sync-03-daily-usage-push.md`
+**Exec plans:**
+
+- [x] `docs/exec-plans/completed/2026-07-09_usage-sync-02-device-api.md` — PUT/GET devices
+- [ ] `docs/exec-plans/active/2026-07-09_usage-sync-03-daily-usage-push.md` — POST daily-usage
+
+Implement **03** next for full collect write path.
 
 ---
 

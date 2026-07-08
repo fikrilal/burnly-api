@@ -689,6 +689,69 @@ paths:
         - UNAUTHORIZED
         - IDEMPOTENCY_IN_PROGRESS
         - INTERNAL
+  /v1/sync/devices/{clientDeviceId}:
+    put:
+      description: Upserts this desktop install as a sync device for the authenticated
+        user. Safe to call repeatedly.
+      operationId: sync.devices.upsert
+      parameters:
+        - name: clientDeviceId
+          required: true
+          in: path
+          description: Stable per-install client device id (max 128 chars).
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertSyncDeviceRequestDto"
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncDeviceEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Register or update a sync device
+      tags: &a7
+        - Sync
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - INTERNAL
+    get:
+      description: Returns this install’s sync device metadata for the authenticated
+        user, including lastSyncAt when available.
+      operationId: sync.devices.get
+      parameters:
+        - name: clientDeviceId
+          required: true
+          in: path
+          description: Stable per-install client device id (max 128 chars).
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncDeviceEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Get sync device metadata
+      tags: *a7
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -701,6 +764,8 @@ tags:
     description: Authentication and session endpoints.
   - name: Users
     description: User profile endpoints.
+  - name: Sync
+    description: "Desktop collect: device registration and usage push."
 servers:
   - url: /
 components:
@@ -789,7 +854,7 @@ components:
           description: Linked authentication methods on this account.
           items:
             type: string
-            enum: &a8
+            enum: &a9
               - PASSWORD
               - GOOGLE
         profile:
@@ -835,7 +900,7 @@ components:
       properties:
         provider:
           type: string
-          enum: &a7
+          enum: &a8
             - GOOGLE
           example: GOOGLE
         idToken:
@@ -855,7 +920,7 @@ components:
       properties:
         provider:
           type: string
-          enum: *a7
+          enum: *a8
           example: GOOGLE
         idToken:
           type: string
@@ -950,7 +1015,7 @@ components:
             refresh responses.
           items:
             type: string
-            enum: *a8
+            enum: *a9
       required:
         - id
         - email
@@ -1215,5 +1280,76 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/ProfileImageUrlDto"
+      required:
+        - data
+    UpsertSyncDeviceRequestDto:
+      type: object
+      properties:
+        displayName:
+          type: string
+          example: fikri-laptop
+          nullable: true
+          description: Optional human label (hostname or user-editable name).
+        platform:
+          type: string
+          enum: &a10
+            - linux
+            - macos
+            - windows
+          example: linux
+        appVersion:
+          type: string
+          example: 0.1.20
+        reportingTimezone:
+          type: string
+          example: Asia/Jakarta
+          description: IANA reporting timezone from the desktop install.
+      required:
+        - platform
+        - appVersion
+        - reportingTimezone
+    SyncDeviceDto:
+      type: object
+      properties:
+        clientDeviceId:
+          type: string
+          example: dev_abc123
+        displayName:
+          type: string
+          example: fikri-laptop
+          nullable: true
+        platform:
+          type: string
+          enum: *a10
+          example: linux
+        appVersion:
+          type: string
+          example: 0.1.20
+        reportingTimezone:
+          type: string
+          example: Asia/Jakarta
+        lastSyncAt:
+          type: string
+          example: 2026-07-09T12:00:00.000Z
+          nullable: true
+          description: Last successful daily-usage accept time, if any.
+        createdAt:
+          type: string
+          example: 2026-07-09T10:00:00.000Z
+        updatedAt:
+          type: string
+          example: 2026-07-09T10:00:00.000Z
+      required:
+        - clientDeviceId
+        - platform
+        - appVersion
+        - reportingTimezone
+        - createdAt
+        - updatedAt
+    SyncDeviceEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SyncDeviceDto"
       required:
         - data
