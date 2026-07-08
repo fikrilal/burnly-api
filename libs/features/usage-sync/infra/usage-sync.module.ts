@@ -5,6 +5,7 @@ import {
   provideConstructedAppService,
   provideConstructedClockedAppService,
 } from '../../../platform/di/app-service.provider';
+import { RedisModule } from '../../../platform/redis/redis.module';
 import { PushDailyUsageService } from '../app/push-daily-usage.service';
 import { SyncDevicesService } from '../app/sync-devices.service';
 import { DailyUsageController } from './http/daily-usage.controller';
@@ -12,17 +13,19 @@ import { SyncDevicesController } from './http/sync-devices.controller';
 import { PrismaDailyUsageFactsRepository } from './persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from './persistence/prisma-sync-batches.repository';
 import { PrismaSyncDevicesRepository } from './persistence/prisma-sync-devices.repository';
+import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-push-rate-limiter';
 
 /**
  * Usage-sync collect feature: device register/get + daily usage push.
  */
 @Module({
-  imports: [PrismaModule, PlatformAuthModule],
+  imports: [PrismaModule, PlatformAuthModule, RedisModule],
   controllers: [SyncDevicesController, DailyUsageController],
   providers: [
     PrismaSyncDevicesRepository,
     PrismaDailyUsageFactsRepository,
     PrismaSyncBatchesRepository,
+    RedisDailyUsagePushRateLimiter,
     provideConstructedAppService({
       provide: SyncDevicesService,
       inject: [PrismaSyncDevicesRepository],

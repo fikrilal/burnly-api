@@ -18,6 +18,7 @@ import type { DailyUsageFactsRepository } from './ports/daily-usage-facts.reposi
 import type { SyncDevicesRepository } from './ports/sync-devices.repository';
 import { SyncErrorCode } from './usage-sync.error-codes';
 import { UsageSyncError } from './usage-sync.errors';
+import { MAX_FACTS_PER_BATCH, MAX_MODELS_PER_FACT } from './usage-sync.limits';
 import type {
   DailyModelUsageWrite,
   UpsertDailyUsageFactInput,
@@ -25,8 +26,7 @@ import type {
 } from './usage-sync.types';
 
 export const SUPPORTED_SYNC_CONTRACT_VERSION = 1;
-export const MAX_FACTS_PER_BATCH = 1000;
-export const MAX_MODELS_PER_FACT = 100;
+export { MAX_FACTS_PER_BATCH, MAX_MODELS_PER_FACT } from './usage-sync.limits';
 
 export type PushDailyUsageCommand = Readonly<{
   userId: string;
@@ -190,9 +190,11 @@ function parseFact(
     issues.push({ field: `${prefix}.models`, message: 'must be an array' });
     ok = false;
   } else if (modelsRaw.length > MAX_MODELS_PER_FACT) {
+    // Collected as issue; service maps pure over-size to SYNC_PAYLOAD_TOO_LARGE after loop.
     issues.push({
       field: `${prefix}.models`,
       message: `at most ${MAX_MODELS_PER_FACT} models per fact`,
+      // marker consumed below via field name + message pattern
     });
     ok = false;
   }
@@ -353,9 +355,16 @@ export class PushDailyUsageService {
     if (!Array.isArray(command.facts)) {
       issues.push({ field: 'facts', message: 'must be an array' });
     } else if (command.facts.length > MAX_FACTS_PER_BATCH) {
-      issues.push({
-        field: 'facts',
-        message: `at most ${MAX_FACTS_PER_BATCH} facts per request`,
+      throw new UsageSyncError({
+        status: 400,
+        code: SyncErrorCode.SYNC_PAYLOAD_TOO_LARGE,
+        message: `At most ${MAX_FACTS_PER_BATCH} facts per request`,
+        issues: [
+          {
+            field: 'facts',
+            message: `at most ${MAX_FACTS_PER_BATCH} facts per request`,
+          },
+        ],
       });
     }
 
@@ -411,10 +420,22 @@ export class PushDailyUsageService {
     }
 
     if (factIssues.length > 0) {
+      const payloadTooLarge = factIssues.some(
+        (issue) =>
+          issue.field.endsWith('.models') && issue.message.includes(`at most ${MAX_MODELS_PER_FACT}`),
+      );
       throw new UsageSyncError({
         status: 400,
-        code: identityInvalid ? SyncErrorCode.SYNC_IDENTITY_INVALID : ErrorCode.VALIDATION_FAILED,
-        message: identityInvalid ? 'Invalid identity key' : 'Validation failed',
+        code: payloadTooLarge
+          ? SyncErrorCode.SYNC_PAYLOAD_TOO_LARGE
+          : identityInvalid
+            ? SyncErrorCode.SYNC_IDENTITY_INVALID
+            : ErrorCode.VALIDATION_FAILED,
+        message: payloadTooLarge
+          ? `At most ${MAX_MODELS_PER_FACT} models per fact`
+          : identityInvalid
+            ? 'Invalid identity key'
+            : 'Validation failed',
         issues: factIssues,
       });
     }

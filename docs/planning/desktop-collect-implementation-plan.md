@@ -331,16 +331,16 @@ Phase C collect write path is complete. Next: Phase D hardening.
 
 **Exit criteria:**
 
-- [ ] Same `Idempotency-Key` replay is safe and deterministic
+- [x] Same `Idempotency-Key` replay is safe and deterministic
 - [x] Account deletion leaves no residual usage metrics for the user
-- [ ] Limits documented for desktop (facts/batch, models/fact, body size)
+- [x] Limits documented for desktop (facts/batch, models/fact, body size)
 
 **Exec plans:**
 
-- [ ] `docs/exec-plans/active/2026-07-09_usage-sync-04-idempotency-and-limits.md` — idempotency, limits, rate limit
+- [x] `docs/exec-plans/completed/2026-07-09_usage-sync-04-idempotency-and-limits.md` — idempotency, limits, rate limit
 - [x] `docs/exec-plans/completed/2026-07-09_usage-sync-05-account-deletion-wipe.md` — finalize wipe
 
-Next: **04** (client retries / abuse).
+Phase D complete. Next: Phase E verify / Phase F handoff.
 
 ---
 

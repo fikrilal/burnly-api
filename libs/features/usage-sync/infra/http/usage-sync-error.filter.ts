@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import {
+  applyRetryAfterHeader,
   mapFeatureErrorToProblem,
 } from '../../../../platform/http/filters/feature-error.mapper';
 import { ProblemDetailsFilter } from '../../../../platform/http/filters/problem-details.filter';
@@ -10,6 +11,8 @@ export class UsageSyncErrorFilter implements ExceptionFilter {
   private readonly problemDetailsFilter = new ProblemDetailsFilter();
 
   catch(exception: UsageSyncError, host: ArgumentsHost): void {
+    applyRetryAfterHeader(host, exception.retryAfterSeconds);
+
     const mapped = mapFeatureErrorToProblem({
       status: exception.status,
       code: exception.code,

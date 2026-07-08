@@ -754,15 +754,17 @@ paths:
         - INTERNAL
   /v1/sync/daily-usage:
     post:
-      description: Uploads a batch of daily usage aggregates for a registered sync
-        device. All-or-nothing validation; does not create devices.
+      description: "Uploads a batch of daily usage aggregates for a registered sync
+        device. Requires Idempotency-Key. All-or-nothing validation; does not
+        create devices. Limits: 1000 facts/request, 100 models/fact, 60
+        pushes/15 min per user."
       operationId: sync.dailyUsage.push
       parameters:
         - name: Idempotency-Key
           in: header
           description: "Idempotency key for safe retries of write requests. Replays return
             `Idempotency-Replayed: true`."
-          required: false
+          required: true
           schema:
             type: string
             minLength: 1
@@ -790,9 +792,11 @@ paths:
         - VALIDATION_FAILED
         - UNAUTHORIZED
         - FORBIDDEN
+        - RATE_LIMITED
         - SYNC_CONTRACT_UNSUPPORTED
         - SYNC_DEVICE_NOT_FOUND
         - SYNC_IDENTITY_INVALID
+        - SYNC_PAYLOAD_TOO_LARGE
         - IDEMPOTENCY_IN_PROGRESS
         - CONFLICT
         - INTERNAL
@@ -1441,7 +1445,9 @@ components:
           items:
             type: object
             additionalProperties: true
-          description: Daily usage facts; deep validation in service.
+          maxItems: 1000
+          description: Daily usage facts; deep validation in service. Over-limit returns
+            SYNC_PAYLOAD_TOO_LARGE.
       required:
         - contractVersion
         - clientDeviceId

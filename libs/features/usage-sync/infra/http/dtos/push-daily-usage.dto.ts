@@ -1,7 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize,
   IsArray,
   IsIn,
   IsInt,
@@ -14,6 +13,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { MAX_FACTS_PER_BATCH } from '../../../app/usage-sync.limits';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -75,10 +75,11 @@ export class PushDailyUsageRequestDto {
   @ApiProperty({
     type: 'array',
     items: { type: 'object', additionalProperties: true },
-    description: 'Daily usage facts; deep validation in service.',
+    maxItems: MAX_FACTS_PER_BATCH,
+    description:
+      'Daily usage facts; deep validation in service. Over-limit returns SYNC_PAYLOAD_TOO_LARGE.',
   })
   @IsArray()
-  @ArrayMaxSize(1000)
   @IsObject({ each: true })
   facts!: Record<string, unknown>[];
 }

@@ -9,16 +9,19 @@ export class UsageSyncError extends Error {
   readonly status: number;
   readonly code: UsageSyncErrorCodeValue;
   readonly issues?: ReadonlyArray<UsageSyncIssue>;
+  readonly retryAfterSeconds?: number;
 
   constructor(params: {
     status: number;
     code: UsageSyncErrorCodeValue;
     message?: string;
     issues?: ReadonlyArray<UsageSyncIssue>;
+    retryAfterSeconds?: number;
   }) {
     super(params.message ?? params.code);
     this.status = params.status;
     this.code = params.code;
     this.issues = params.issues;
+    this.retryAfterSeconds = params.retryAfterSeconds;
   }
 }

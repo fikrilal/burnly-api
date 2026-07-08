@@ -7,6 +7,7 @@ import {
   uniqueEmail,
   type AuthE2eHarness,
 } from './auth/auth-e2e.harness';
+import { MAX_FACTS_PER_BATCH } from '../libs/features/usage-sync/app/usage-sync.limits';
 
 function canonicalFixture(clientDeviceId: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -96,15 +97,24 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
     return { accessToken, clientDeviceId };
   }
 
+  function push(
+    accessToken: string,
+    body: Record<string, unknown>,
+    options?: { idempotencyKey?: string | null },
+  ) {
+    const req = request(baseUrl)
+      .post('/v1/sync/daily-usage')
+      .set('Authorization', `Bearer ${accessToken}`);
+    if (options?.idempotencyKey !== null) {
+      req.set('Idempotency-Key', options?.idempotencyKey ?? randomUUID());
+    }
+    return req.send(body);
+  }
+
   it('accepts canonical fixture after device registration', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
 
-    const res = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('Idempotency-Key', randomUUID())
-      .send(canonicalFixture(clientDeviceId))
-      .expect(200);
+    const res = await push(accessToken, canonicalFixture(clientDeviceId)).expect(200);
 
     const data = getBodyData(res.body);
     expect(data.clientDeviceId).toBe(clientDeviceId);
@@ -130,17 +140,73 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
     expect(device.lastSyncAt).not.toBeNull();
   });
 
+  it('requires Idempotency-Key', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+
+    const res = await push(accessToken, canonicalFixture(clientDeviceId), {
+      idempotencyKey: null,
+    }).expect(400);
+
+    expect(res.body).toMatchObject({
+      status: 400,
+      code: 'VALIDATION_FAILED',
+    });
+    expect(JSON.stringify(res.body.errors ?? [])).toContain('Idempotency-Key');
+  });
+
+  it('replays identical Idempotency-Key without growing facts', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+    const key = randomUUID();
+    const body = canonicalFixture(clientDeviceId);
+
+    const first = await push(accessToken, body, { idempotencyKey: key }).expect(200);
+    const second = await push(accessToken, body, { idempotencyKey: key }).expect(200);
+
+    expect(second.headers['idempotency-replayed']).toBe('true');
+    expect(second.body).toEqual(first.body);
+
+    const device = await prisma.syncDevice.findFirstOrThrow({
+      where: { clientDeviceId },
+    });
+    const count = await prisma.dailyUsageFact.count({ where: { deviceId: device.id } });
+    expect(count).toBe(1);
+  });
+
+  it('rejects over-limit facts with SYNC_PAYLOAD_TOO_LARGE', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+    const baseFact = (canonicalFixture(clientDeviceId).facts as unknown[])[0] as Record<
+      string,
+      unknown
+    >;
+    const facts = Array.from({ length: MAX_FACTS_PER_BATCH + 1 }, (_, i) => ({
+      ...baseFact,
+      identityKey: `claude-code:daily:v1:UTC:2026-07-08`,
+      // Keep same identity — validation runs after size check for top-level count
+      sourceKey: 'claude-code',
+      usageDate: '2026-07-08',
+      totalTokens: i + 1,
+    }));
+
+    const res = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, { facts }),
+    ).expect(400);
+
+    expect(res.body.code).toBe('SYNC_PAYLOAD_TOO_LARGE');
+
+    const device = await prisma.syncDevice.findFirstOrThrow({
+      where: { clientDeviceId },
+    });
+    expect(await prisma.dailyUsageFact.count({ where: { deviceId: device.id } })).toBe(0);
+  });
+
   it('rejects invalid identityKey without writing', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
 
     const fixture = canonicalFixture(clientDeviceId);
     (fixture.facts[0] as Record<string, unknown>).identityKey = 'wrong-key';
 
-    const res = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(fixture)
-      .expect(400);
+    const res = await push(accessToken, fixture).expect(400);
 
     expect(res.body.code).toBe('SYNC_IDENTITY_INVALID');
 
@@ -152,14 +218,9 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
   });
 
   it('returns SYNC_DEVICE_NOT_FOUND when device missing', async () => {
-    // Register + register a different device, then push for an unregistered client id.
     const { accessToken } = await registerAndDevice();
 
-    const res = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(canonicalFixture(`missing-${randomUUID()}`))
-      .expect(404);
+    const res = await push(accessToken, canonicalFixture(`missing-${randomUUID()}`)).expect(404);
 
     expect(res.body.code).toBe('SYNC_DEVICE_NOT_FOUND');
   });
@@ -167,6 +228,7 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
   it('rejects unauthenticated push', async () => {
     await request(baseUrl)
       .post('/v1/sync/daily-usage')
+      .set('Idempotency-Key', randomUUID())
       .send(canonicalFixture('no-auth'))
       .expect(401);
   });
@@ -175,54 +237,44 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
     const { accessToken, clientDeviceId } = await registerAndDevice();
     const baseFact = canonicalFixture(clientDeviceId).facts[0] as Record<string, unknown>;
 
-    await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(canonicalFixture(clientDeviceId, { clientRevision: 1 }))
-      .expect(200);
+    await push(accessToken, canonicalFixture(clientDeviceId, { clientRevision: 1 })).expect(200);
 
-    const up = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(
-        canonicalFixture(clientDeviceId, {
-          clientRevision: 2,
-          facts: [
-            {
-              ...baseFact,
-              totalTokens: 999,
-              lastSeenAt: '2026-07-08T13:00:00.000Z',
-              models: [
-                {
-                  rawModelId: 'claude-sonnet-4',
-                  totalTokens: 999,
-                  cost: { status: 'unavailable' },
-                },
-              ],
-            },
-          ],
-        }),
-      )
-      .expect(200);
+    const up = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        clientRevision: 2,
+        facts: [
+          {
+            ...baseFact,
+            totalTokens: 999,
+            lastSeenAt: '2026-07-08T13:00:00.000Z',
+            models: [
+              {
+                rawModelId: 'claude-sonnet-4',
+                totalTokens: 999,
+                cost: { status: 'unavailable' },
+              },
+            ],
+          },
+        ],
+      }),
+    ).expect(200);
 
     expect(getBodyData(up.body).counts).toMatchObject({ upserted: 1 });
 
-    const stale = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(
-        canonicalFixture(clientDeviceId, {
-          clientRevision: 1,
-          facts: [
-            {
-              ...baseFact,
-              totalTokens: 1,
-              lastSeenAt: '2026-07-08T14:00:00.000Z',
-            },
-          ],
-        }),
-      )
-      .expect(200);
+    const stale = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        clientRevision: 1,
+        facts: [
+          {
+            ...baseFact,
+            totalTokens: 1,
+            lastSeenAt: '2026-07-08T14:00:00.000Z',
+          },
+        ],
+      }),
+    ).expect(200);
 
     expect(getBodyData(stale.body).counts).toMatchObject({ unchanged: 1, upserted: 0 });
 
@@ -238,11 +290,10 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
   it('empty facts heartbeat updates lastSyncAt', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
 
-    const res = await request(baseUrl)
-      .post('/v1/sync/daily-usage')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send(canonicalFixture(clientDeviceId, { facts: [], clientRevision: 3 }))
-      .expect(200);
+    const res = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, { facts: [], clientRevision: 3 }),
+    ).expect(200);
 
     expect(getBodyData(res.body).counts).toMatchObject({
       received: 0,
