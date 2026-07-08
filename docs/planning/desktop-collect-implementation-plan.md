@@ -253,6 +253,9 @@ rules mid-PR.
 **Outcome:** Postgres schema can store devices, daily facts, model children, and
 batch audit rows with correct uniqueness.
 
+**Engineering proposal (review before implement):**  
+`docs/planning/usage-sync-phase-b-schema-proposal.md`
+
 **Work:**
 
 - Prisma models + migration
@@ -262,11 +265,12 @@ batch audit rows with correct uniqueness.
 
 **Exit criteria:**
 
-- [ ] `prisma migrate` clean on empty DB
-- [ ] Unique constraints match upsert strategy
-- [ ] No storage of forbidden privacy fields
+- [x] `prisma migrate` clean on empty DB
+- [x] Unique constraints match upsert strategy
+- [x] No storage of forbidden privacy fields
 
-**Later exec-plan shape:** `YYYY-MM-DD_usage-sync-01-schema.md`
+**Exec plan:** `docs/exec-plans/completed/2026-07-09_usage-sync-01-schema.md`  
+**Proposal:** `docs/planning/usage-sync-phase-b-schema-proposal.md`
 
 ---
 

@@ -53,6 +53,9 @@ model User {
   externalIdentities ExternalIdentity[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens PasswordResetToken[]
+  syncDevices        SyncDevice[]
+  dailyUsageFacts    DailyUsageFact[]
+  syncBatches        SyncBatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -244,4 +247,187 @@ model UserAccountDeletionAudit {
   @@index([targetUserId, createdAt])
   @@index([actorUserId, createdAt])
   @@index([traceId])
+}
+
+// ---------------------------------------------------------------------------
+// Usage sync collect (desktop daily usage projection) — ADR 0020 / 0021
+// ---------------------------------------------------------------------------
+
+enum SyncDevicePlatform {
+  linux
+  macos
+  windows
+}
+
+enum UsageRecordState {
+  active
+  missing
+  removed
+}
+
+enum UsageCostStatus {
+  available
+  estimated
+  not_applicable
+  unavailable
+}
+
+enum UsageCostKind {
+  source_reported
+  collector_calculated
+  collector_mixed
+  burnly_calculated
+  unknown
+}
+
+enum UsageDataQuality {
+  complete
+  partial
+}
+
+enum SyncBatchScope {
+  rolling
+}
+
+enum SyncBatchStatus {
+  accepted
+  rejected
+}
+
+model SyncDevice {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Stable per-install id from desktop (not Session.id).
+  clientDeviceId     String             @db.VarChar(128)
+  displayName        String?            @db.VarChar(128)
+  platform           SyncDevicePlatform
+  appVersion         String             @db.VarChar(64)
+  reportingTimezone  String             @db.VarChar(64)
+  lastSyncAt         DateTime?
+  lastClientRevision BigInt?
+
+  dailyUsageFacts DailyUsageFact[]
+  syncBatches     SyncBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, clientDeviceId])
+  @@index([userId])
+  @@index([userId, lastSyncAt])
+}
+
+model DailyUsageFact {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String     @db.Uuid
+  device   SyncDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  sourceKey            String @db.VarChar(64)
+  identityKey          String @db.VarChar(512)
+  identityVersion      Int
+  usageDate            DateTime @db.Date
+  aggregationTimezone  String @db.VarChar(64)
+
+  inputTokens          BigInt?
+  outputTokens         BigInt?
+  cacheCreationTokens  BigInt?
+  cacheReadTokens      BigInt?
+  totalTokens          BigInt
+  unclassifiedTokens   BigInt?
+
+  costStatus       UsageCostStatus
+  costKind         UsageCostKind
+  costAmountMicros BigInt?
+  costCurrency     String? @db.Char(3)
+
+  dataQuality UsageDataQuality
+  recordState UsageRecordState
+
+  clientFirstSeenAt DateTime
+  clientLastSeenAt  DateTime
+  clientRemovedAt   DateTime?
+  clientRevision    BigInt
+  syncedAt          DateTime
+
+  models DailyModelUsageFact[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, deviceId, identityKey])
+  @@index([userId, usageDate])
+  @@index([userId, sourceKey, usageDate])
+  @@index([userId, aggregationTimezone, usageDate])
+  @@index([deviceId, usageDate])
+  @@index([userId, recordState, usageDate])
+}
+
+model DailyModelUsageFact {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
+
+  dailyUsageFactId String         @db.Uuid
+  dailyUsageFact   DailyUsageFact @relation(fields: [dailyUsageFactId], references: [id], onDelete: Cascade)
+
+  /// Desktop raw model id; null means unknown-model bucket in the API.
+  rawModelId String? @db.VarChar(256)
+  /// Stable uniqueness key: rawModelId or UNKNOWN_MODEL_IDENTITY_KEY sentinel.
+  modelIdentityKey String @db.VarChar(256)
+  displayName      String? @db.VarChar(256)
+  providerKey      String? @db.VarChar(64)
+
+  inputTokens         BigInt?
+  outputTokens        BigInt?
+  cacheCreationTokens BigInt?
+  cacheReadTokens     BigInt?
+  totalTokens         BigInt?
+
+  costStatus       UsageCostStatus
+  costKind         UsageCostKind?
+  costAmountMicros BigInt?
+  costCurrency     String? @db.Char(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dailyUsageFactId, modelIdentityKey])
+  @@index([userId])
+  @@index([dailyUsageFactId])
+}
+
+model SyncBatch {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId String?     @db.Uuid
+  device   SyncDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  clientBatchId   String? @db.VarChar(128)
+  contractVersion Int?
+  clientRevision  BigInt?
+  appVersion      String? @db.VarChar(64)
+
+  windowStartDate DateTime?      @db.Date
+  windowEndDate   DateTime?      @db.Date
+  windowScope     SyncBatchScope?
+
+  status           SyncBatchStatus
+  recordsReceived  Int @default(0)
+  recordsUpserted  Int @default(0)
+  recordsRemoved   Int @default(0)
+  recordsUnchanged Int @default(0)
+
+  rejectCode String? @db.VarChar(128)
+  traceId    String? @db.VarChar(128)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([deviceId, createdAt])
 }
