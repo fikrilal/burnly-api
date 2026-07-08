@@ -29,4 +29,6 @@ Rules:
 - `docs/adr/0017-standardize-app-errors-and-clock.md`
 - `docs/adr/0018-remove-admin-rbac-modules.md`
 - `docs/adr/0019-simplify-consumer-user-role-model.md`
+- `docs/adr/0020-daily-usage-cloud-projection.md`
+- `docs/adr/0021-usage-sync-identity-and-devices.md`
 - `docs/adr/template.md`

@@ -3,18 +3,27 @@
 ## Product Context
 
 - Service: `burnly-api`
-- Purpose: backend API and worker for Burnly account, optional sync, and web product surfaces
+- Purpose: backend API and worker for Burnly account, cloud daily-usage projection, and web product surfaces
 - Baseline architecture: modular monolith with API + worker processes
 - Clients:
-  - Desktop tray app: `../burnly` (local-first; optional account/sync later)
+  - Desktop tray app: `../burnly` (local-first; account when user wants web reports)
   - Public web: `../burnly-web` (landing now; reports/leaderboard later)
 
 ## Launch Scope
 
 - In scope: auth/session foundation, user profile baseline, platform gates (OpenAPI, health, jobs)
-- Near-term product: optional account + aggregate usage sync for web reports
+- Near-term product: account-driven **daily usage collect** (desktop push) so web can show history
 - Out of scope: admin control plane and RBAC-protected operational endpoints (removed; see ADR `docs/adr/0018-remove-admin-rbac-modules.md`)
 - Auth mode at launch: password + OIDC (Google Sign-In)
+
+## Cloud usage framing
+
+- Local desktop tracking needs **no account**.
+- Cloud reports require a Burnly **account**; signing in is the cloud choice (no server `syncEnabled` flag in v1).
+- Cloud stores a **projection of daily usage facts** (+ model breakdowns), not a full local SQLite mirror.
+- ADRs: `docs/adr/0020-daily-usage-cloud-projection.md`, `docs/adr/0021-usage-sync-identity-and-devices.md`
+- Collect contract: `docs/planning/desktop-collect-api-requirements.md`
+- Implementation roadmap: `docs/planning/desktop-collect-implementation-plan.md`
 
 ## Enabled Integrations
 
@@ -32,12 +41,15 @@
 - Sessions: refresh-token based sessions with rotation/revocation
 - Auth entrypoints: password credentials and Google OIDC token exchange
 - Local desktop tracking remains usable without an account
+- Desktop should send stable install `deviceId` / `deviceName` on auth when using collect
 
 ## Data Retention and Deletion Policy
 
 - Initial policy uses template defaults for account deletion and audit events
-- Sync must remain opt-in; only selected aggregate metrics may leave the device
-- Product-specific retention windows and compliance rules: `TBD` before production
+- Only aggregate daily metrics (and allowed device metadata) may be stored for signed-in users
+- Never store project paths, prompts, code, session ids (v1), or collector raw payloads
+- Account deletion must wipe sync devices, daily facts, model facts, and sync batches
+- Product-specific cloud retention windows: `TBD` before production (history kept until then)
 
 ## SLO and SLA Targets
 

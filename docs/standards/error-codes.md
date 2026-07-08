@@ -34,8 +34,12 @@ Examples:
 - `AUTH_EMAIL_NOT_VERIFIED`
 - `AUTH_REFRESH_TOKEN_REVOKED`
 - `USERS_EMAIL_ALREADY_EXISTS`
+- `SYNC_DEVICE_NOT_FOUND`
+- `SYNC_IDENTITY_INVALID`
 
 Guideline: prefer explicit feature codes once a consumer needs to branch on the reason.
+
+Usage-sync collect codes live in `libs/shared/sync/sync-error-codes.ts` (`SyncErrorCode`).
 
 ## Validation Errors
 

@@ -42,6 +42,11 @@ Code should follow these docs; if code and docs diverge, fix the mismatch.
   - `docs/engineering/guardrails.md`
   - `docs/engineering/parallel-agent-workflow.md`
   - `docs/engineering/duplication-harness.md`
+- Planning / desktop handoff
+  - `docs/planning/cloud-sync-backend-handoff.md` — desktop schema, privacy, storage sketch
+  - `docs/planning/desktop-collect-api-requirements.md` — APIs desktop will call (auth + push)
+  - `docs/planning/desktop-collect-implementation-plan.md` — high-level end-to-end collect roadmap
+  - ADRs for collect: `docs/adr/0020-daily-usage-cloud-projection.md`, `docs/adr/0021-usage-sync-identity-and-devices.md`
 - Execution plans
   - `docs/exec-plans/README.md`
   - `docs/exec-plans/_template.md`
