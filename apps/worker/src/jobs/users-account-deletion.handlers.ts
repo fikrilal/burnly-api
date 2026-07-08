@@ -13,6 +13,7 @@ import type {
   UsersProfileImageExpireUploadJobData,
 } from '../../../../libs/features/users/infra/jobs/profile-image-cleanup.job';
 import type { UsersFinalizeAccountDeletionJobData } from '../../../../libs/features/users/infra/jobs/user-account-deletion.job';
+import { wipeUsageSyncForUser } from '../../../../libs/features/usage-sync/infra/persistence/wipe-usage-sync-for-user';
 import type {
   UsersFinalizeDeletionTxnResult,
   UsersProfileImageDeleteStoredFileJobResult,
@@ -71,6 +72,11 @@ export async function runFinalizeAccountDeletionTx(
         throw new Error('Invariant violated: missing deletionRequestedSessionId');
       }
 
+      // Usage-sync is keyed by userId; soft-deleted User rows never cascade.
+      // Hard-delete collect data before scrubbing credentials (same txn).
+      // ADR 0020 / usage-sync Phase D wipe.
+      const usageSyncWipe = await wipeUsageSyncForUser(tx, user.id);
+
       const scrubbedEmail = `deleted+${user.id}@example.invalid`;
 
       await tx.user.update({
@@ -114,7 +120,7 @@ export async function runFinalizeAccountDeletionTx(
         select: { id: true },
       });
 
-      return { kind: 'finalized', userId: user.id } as const;
+      return { kind: 'finalized', userId: user.id, usageSyncWipe } as const;
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
   );

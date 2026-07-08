@@ -88,7 +88,13 @@ export class UsersAccountDeletionWorker implements OnModuleInit {
       }
 
       if (res.kind === 'finalized') {
-        this.logger.info({ userId: res.userId }, 'Account deletion finalized');
+        this.logger.info(
+          {
+            userId: res.userId,
+            usageSyncWipe: res.usageSyncWipe,
+          },
+          'Account deletion finalized',
+        );
         return {
           ok: true,
           userId: res.userId,

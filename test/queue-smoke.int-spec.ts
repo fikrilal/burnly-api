@@ -246,6 +246,60 @@ async function waitForReady(baseUrl: string, timeoutMs = 20_000): Promise<void> 
       select: { id: true },
     });
 
+    // Usage-sync collect data must be wiped on finalize (soft-deleted User does not cascade).
+    const syncDevice = await client.syncDevice.create({
+      data: {
+        userId: created.id,
+        clientDeviceId: `sync_${runId}`,
+        platform: 'linux',
+        appVersion: '0.1.20',
+        reportingTimezone: 'UTC',
+      },
+      select: { id: true },
+    });
+    const dailyFact = await client.dailyUsageFact.create({
+      data: {
+        userId: created.id,
+        deviceId: syncDevice.id,
+        sourceKey: 'claude-code',
+        identityKey: `claude-code:daily:v1:UTC:2026-07-08:${runId}`,
+        identityVersion: 1,
+        usageDate: new Date('2026-07-08T00:00:00.000Z'),
+        aggregationTimezone: 'UTC',
+        totalTokens: 150n,
+        costStatus: 'unavailable',
+        costKind: 'unknown',
+        dataQuality: 'complete',
+        recordState: 'active',
+        clientFirstSeenAt: now,
+        clientLastSeenAt: now,
+        clientRevision: 1n,
+        syncedAt: now,
+        models: {
+          create: {
+            userId: created.id,
+            rawModelId: 'claude-sonnet-4',
+            modelIdentityKey: 'claude-sonnet-4',
+            totalTokens: 150n,
+            costStatus: 'unavailable',
+          },
+        },
+      },
+      select: { id: true },
+    });
+    await client.syncBatch.create({
+      data: {
+        userId: created.id,
+        deviceId: syncDevice.id,
+        contractVersion: 1,
+        clientRevision: 1n,
+        status: 'accepted',
+        recordsReceived: 1,
+        recordsUpserted: 1,
+      },
+    });
+    expect(dailyFact.id).toBeTruthy();
+
     const requestedAt = new Date(now.getTime() - 60_000);
     const scheduledFor = new Date(now.getTime() - 1_000);
 
@@ -329,6 +383,17 @@ async function waitForReady(baseUrl: string, timeoutMs = 20_000): Promise<void> 
     expect(emailTokens).toHaveLength(0);
     expect(resetTokens).toHaveLength(0);
     expect(sessions).toHaveLength(0);
+
+    const [syncDevices, dailyFacts, modelFacts, syncBatches] = await Promise.all([
+      client.syncDevice.count({ where: { userId: created.id } }),
+      client.dailyUsageFact.count({ where: { userId: created.id } }),
+      client.dailyModelUsageFact.count({ where: { userId: created.id } }),
+      client.syncBatch.count({ where: { userId: created.id } }),
+    ]);
+    expect(syncDevices).toBe(0);
+    expect(dailyFacts).toBe(0);
+    expect(modelFacts).toBe(0);
+    expect(syncBatches).toBe(0);
 
     const deletionAudit = await client.userAccountDeletionAudit.findFirst({
       where: { targetUserId: created.id, action: 'FINALIZED' },

@@ -313,6 +313,9 @@ Phase C collect write path is complete. Next: Phase D hardening.
 
 **Outcome:** Retries and account lifecycle are production-safe for collect.
 
+**Engineering proposal (review before implement):**  
+`docs/planning/usage-sync-phase-d-hardening-proposal.md`
+
 **Work:**
 
 - HTTP `Idempotency-Key` on `POST /v1/sync/daily-usage` (platform middleware)
@@ -329,12 +332,15 @@ Phase C collect write path is complete. Next: Phase D hardening.
 **Exit criteria:**
 
 - [ ] Same `Idempotency-Key` replay is safe and deterministic
-- [ ] Account deletion leaves no residual usage metrics for the user
+- [x] Account deletion leaves no residual usage metrics for the user
 - [ ] Limits documented for desktop (facts/batch, models/fact, body size)
 
-**Later exec-plan shape:**  
-`YYYY-MM-DD_usage-sync-04-idempotency-and-limits.md`  
-`YYYY-MM-DD_usage-sync-05-account-deletion-wipe.md`
+**Exec plans:**
+
+- [ ] `docs/exec-plans/active/2026-07-09_usage-sync-04-idempotency-and-limits.md` — idempotency, limits, rate limit
+- [x] `docs/exec-plans/completed/2026-07-09_usage-sync-05-account-deletion-wipe.md` — finalize wipe
+
+Next: **04** (client retries / abuse).
 
 ---
 

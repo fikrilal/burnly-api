@@ -41,9 +41,16 @@ export type UsersQueueJobResult =
   | UsersProfileImageDeleteStoredFileJobResult
   | UsersProfileImageExpireUploadJobResult;
 
+export type UsersUsageSyncWipeCounts = Readonly<{
+  modelsDeleted: number;
+  factsDeleted: number;
+  batchesDeleted: number;
+  devicesDeleted: number;
+}>;
+
 export type UsersFinalizeDeletionTxnResult =
   | Readonly<{ kind: 'skipped'; reason: 'user_not_found' }>
   | Readonly<{ kind: 'skipped'; reason: 'not_scheduled'; userId: string }>
   | Readonly<{ kind: 'skipped'; reason: 'already_deleted'; userId: string }>
   | Readonly<{ kind: 'not_due'; userId: string; scheduledFor: Date }>
-  | Readonly<{ kind: 'finalized'; userId: string }>;
+  | Readonly<{ kind: 'finalized'; userId: string; usageSyncWipe: UsersUsageSyncWipeCounts }>;

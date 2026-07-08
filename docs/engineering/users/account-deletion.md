@@ -44,6 +44,10 @@ The job is idempotent:
 
 When finalizing, the worker:
 
+- **Hard-deletes usage-sync collect data** for the user (models → daily facts →
+  sync batches → sync devices). The `User` row is soft-deleted, so Postgres
+  cascades never run; wipe is explicit by `userId` (ADR
+  `docs/adr/0020-daily-usage-cloud-projection.md`).
 - Sets `status = DELETED`, `deletedAt = now`
 - Clears pending deletion fields
 - Scrubs the email to a unique placeholder: `deleted+{userId}@example.invalid`
