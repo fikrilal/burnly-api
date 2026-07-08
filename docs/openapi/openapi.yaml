@@ -752,6 +752,50 @@ paths:
         - FORBIDDEN
         - SYNC_DEVICE_NOT_FOUND
         - INTERNAL
+  /v1/sync/daily-usage:
+    post:
+      description: Uploads a batch of daily usage aggregates for a registered sync
+        device. All-or-nothing validation; does not create devices.
+      operationId: sync.dailyUsage.push
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          description: "Idempotency key for safe retries of write requests. Replays return
+            `Idempotency-Replayed: true`."
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            description: "Opaque string (recommended: UUIDv4)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushDailyUsageRequestDto"
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushDailyUsageEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Push daily usage facts
+      tags:
+        - Sync
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_CONTRACT_UNSUPPORTED
+        - SYNC_DEVICE_NOT_FOUND
+        - SYNC_IDENTITY_INVALID
+        - IDEMPOTENCY_IN_PROGRESS
+        - CONFLICT
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -1351,5 +1395,110 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/SyncDeviceDto"
+      required:
+        - data
+    SyncUsageWindowDto:
+      type: object
+      properties:
+        startDate:
+          type: string
+          example: 2026-07-08
+        endDate:
+          type: string
+          example: 2026-07-08
+        scope:
+          type: string
+          enum:
+            - rolling
+          example: rolling
+      required:
+        - startDate
+        - endDate
+        - scope
+    PushDailyUsageRequestDto:
+      type: object
+      properties:
+        contractVersion:
+          type: number
+          example: 1
+        clientDeviceId:
+          type: string
+          example: example-device-1
+        appVersion:
+          type: string
+          example: 0.1.20
+        reportingTimezone:
+          type: string
+          example: UTC
+        clientRevision:
+          type: number
+          example: 1
+          minimum: 1
+        window:
+          $ref: "#/components/schemas/SyncUsageWindowDto"
+        facts:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          description: Daily usage facts; deep validation in service.
+      required:
+        - contractVersion
+        - clientDeviceId
+        - appVersion
+        - reportingTimezone
+        - clientRevision
+        - window
+        - facts
+    PushDailyUsageCountsDto:
+      type: object
+      properties:
+        received:
+          type: number
+          example: 1
+        upserted:
+          type: number
+          example: 1
+        removed:
+          type: number
+          example: 0
+        unchanged:
+          type: number
+          example: 0
+        rejected:
+          type: number
+          example: 0
+      required:
+        - received
+        - upserted
+        - removed
+        - unchanged
+        - rejected
+    PushDailyUsageResultDto:
+      type: object
+      properties:
+        clientDeviceId:
+          type: string
+        acceptedAt:
+          type: string
+          example: 2026-07-09T12:00:00.000Z
+        clientRevision:
+          type: number
+          example: 1
+        window:
+          $ref: "#/components/schemas/SyncUsageWindowDto"
+        counts:
+          $ref: "#/components/schemas/PushDailyUsageCountsDto"
+      required:
+        - clientDeviceId
+        - acceptedAt
+        - clientRevision
+        - window
+        - counts
+    PushDailyUsageEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PushDailyUsageResultDto"
       required:
         - data

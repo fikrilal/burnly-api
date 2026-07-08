@@ -296,16 +296,16 @@ batch audit rows with correct uniqueness.
 
 **Exit criteria:**
 
-- [ ] Requirements happy-path sequence works with HTTP client/fixtures
-- [ ] Invalid identity/cost → `400`, no partial write
-- [ ] Unknown/expired token → `401`, no write
+- [x] Requirements happy-path sequence works with HTTP client/fixtures
+- [x] Invalid identity/cost → `400`, no partial write
+- [x] Unknown/expired token → `401`, no write
 
 **Exec plans:**
 
 - [x] `docs/exec-plans/completed/2026-07-09_usage-sync-02-device-api.md` — PUT/GET devices
-- [ ] `docs/exec-plans/active/2026-07-09_usage-sync-03-daily-usage-push.md` — POST daily-usage
+- [x] `docs/exec-plans/completed/2026-07-09_usage-sync-03-daily-usage-push.md` — POST daily-usage
 
-Implement **03** next for full collect write path.
+Phase C collect write path is complete. Next: Phase D hardening.
 
 ---
 
