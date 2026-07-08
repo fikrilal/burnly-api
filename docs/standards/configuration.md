@@ -1,0 +1,125 @@
+# Configuration & Secrets Standard
+
+This document defines how configuration and secrets must be handled across environments.
+
+## Environments
+
+Supported environments:
+
+- `development`
+- `test`
+- `staging`
+- `production`
+
+Burnly API must behave correctly with environment-provided configuration in each environment.
+
+## Fail Fast Validation
+
+Configuration must be validated at startup:
+
+- strict schema validation (types + ranges + formats)
+- startup fails if required config is missing or invalid
+
+Rationale: misconfiguration is a top source of production incidents; fail fast is cheaper than partial boot.
+
+Implementation (current):
+
+- Validation is implemented in `libs/platform/config/env.validation.ts`.
+- `env.example` is statically checked by `npm run verify:env` to catch schema drift, stale keys, invalid example values, and production-like invariant drift before startup.
+- `NODE_ENV=staging|production` currently requires: `HTTP_TRUST_PROXY`, `DATABASE_URL`, `REDIS_URL`, `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- Auth issuer/audience are required in staging/production: `AUTH_ISSUER`, `AUTH_AUDIENCE`.
+
+## Secrets Handling
+
+Rules:
+
+- Never commit secrets to git.
+- Do not bake secrets into container images.
+- Secrets must be injected at runtime (env vars, mounted files, or secret manager integration).
+- Rotation must be possible without code changes (replace secret value, deploy).
+
+## Recommended Config Surface (Baseline)
+
+This is the typical minimal set (exact keys may evolve):
+
+- Runtime
+  - `NODE_ENV`
+  - `HTTP_TRUST_PROXY`
+  - `HTTP_REQUEST_TIMEOUT_MS`
+  - `HTTP_CONNECTION_TIMEOUT_MS`
+  - `HTTP_KEEP_ALIVE_TIMEOUT_MS`
+  - `HTTP_BODY_LIMIT_BYTES`
+  - `HTTP_PLUGIN_TIMEOUT_MS`
+  - `HOST`
+  - `PORT`
+  - `WORKER_HOST`
+  - `WORKER_PORT`
+  - `SWAGGER_UI_ENABLED` (optional; defaults on for non-prod, off for prod/test)
+- Database
+  - `DATABASE_URL`
+- Redis / BullMQ
+  - `REDIS_URL`
+  - `REDIS_CONNECT_TIMEOUT_MS`
+  - `REDIS_COMMAND_TIMEOUT_MS`
+  - `REDIS_MAX_RETRIES_PER_REQUEST`
+  - `REDIS_RETRY_BASE_DELAY_MS`
+  - `REDIS_RETRY_MAX_DELAY_MS`
+  - `REDIS_ENABLE_OFFLINE_QUEUE`
+- Auth
+  - `AUTH_ISSUER`
+  - `AUTH_AUDIENCE`
+  - `AUTH_ACCESS_TOKEN_TTL_SECONDS`
+  - `AUTH_REFRESH_TOKEN_TTL_SECONDS`
+  - `AUTH_EMAIL_VERIFICATION_TOKEN_TTL_SECONDS`
+  - `AUTH_EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`
+  - `AUTH_PASSWORD_MIN_LENGTH`
+  - `AUTH_LOGIN_MAX_ATTEMPTS`
+  - `AUTH_LOGIN_WINDOW_SECONDS`
+  - `AUTH_LOGIN_BLOCK_SECONDS`
+  - `AUTH_JWT_ALG` (e.g., `EdDSA` or `RS256`)
+  - `AUTH_SIGNING_KEYS_JSON` (private JWK set, includes current + previous keys, each with `kid`)
+- Observability (Grafana Cloud / OTLP)
+  - `OTEL_SERVICE_NAME`
+  - `OTEL_EXPORTER_OTLP_ENDPOINT`
+  - `OTEL_EXPORTER_OTLP_HEADERS` (contains auth header for Grafana Cloud)
+  - `LOG_LEVEL`
+  - `LOG_PRETTY` (optional; dev-only, defaults true)
+- Email (Resend)
+  - `RESEND_API_KEY`
+  - `EMAIL_FROM`
+  - `EMAIL_REPLY_TO` (optional)
+- Push (FCM)
+  - `PUSH_PROVIDER=FCM`
+  - `FCM_PROJECT_ID`
+  - Credentials (pick one strategy):
+    - GCP (recommended): `FCM_USE_APPLICATION_DEFAULT=true` (ADC / workload identity)
+    - Containers (recommended): `FCM_SERVICE_ACCOUNT_JSON_PATH=/run/secrets/...` (mounted secret file)
+    - Heroku/CI (recommended): `FCM_SERVICE_ACCOUNT_JSON_BASE64=...` (base64-encoded service account JSON)
+    - Local-only fallback: `FCM_SERVICE_ACCOUNT_JSON=...` (raw JSON string; avoid in prod)
+  - Note: use only one of `FCM_SERVICE_ACCOUNT_JSON_PATH`, `FCM_SERVICE_ACCOUNT_JSON_BASE64`, `FCM_SERVICE_ACCOUNT_JSON`.
+- Object storage (S3-compatible; optional)
+  - `STORAGE_S3_ENDPOINT`
+  - `STORAGE_S3_REGION`
+  - `STORAGE_S3_BUCKET`
+  - `STORAGE_S3_ACCESS_KEY_ID`
+  - `STORAGE_S3_SECRET_ACCESS_KEY`
+  - `STORAGE_S3_FORCE_PATH_STYLE` (optional)
+
+## Local Development
+
+Local dev may use `.env`, but:
+
+- `.env` is never committed.
+- `env.example` is committed and kept up-to-date.
+- Keep `env.example` passing `npm run verify:env` whenever config schema keys change.
+- `.env` is only loaded automatically in `development`/`test` (ignored in `staging`/`production`).
+
+## Rotation-Friendly Key Management
+
+Signing keys must be stored as secrets:
+
+- The service loads a set of private signing keys (current + previous) at startup.
+- JWKS publishes public keys derived from the configured set.
+- Rotation is managed by updating the configured key set and deploying.
+
+Avoid storing keys as raw strings in code. Treat them as secret material.

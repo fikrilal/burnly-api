@@ -1,0 +1,107 @@
+import { Resend } from 'resend';
+import { EmailService } from './email.service';
+import { EmailSendError } from './email.types';
+import { createConfigService } from '../../../test/support/stubs';
+
+const sendMock = jest.fn();
+
+jest.mock('resend', () => {
+  return {
+    Resend: jest.fn().mockImplementation(() => ({
+      emails: {
+        send: sendMock,
+      },
+    })),
+  };
+});
+
+describe('EmailService (Resend)', () => {
+  beforeEach(() => {
+    sendMock.mockReset();
+    sendMock.mockResolvedValue({ data: { id: 'email-id' }, error: null });
+    jest.mocked(Resend).mockClear();
+  });
+
+  it('is disabled when RESEND_API_KEY/EMAIL_FROM are missing', () => {
+    const svc = new EmailService(createConfigService({}));
+    expect(svc.isEnabled()).toBe(false);
+  });
+
+  it('throws when sending without config', async () => {
+    const svc = new EmailService(createConfigService({}));
+    await expect(
+      svc.send({ to: 'user@example.com', subject: 'Hello', text: 'Hi' }),
+    ).rejects.toBeInstanceOf(EmailSendError);
+  });
+
+  it('sends via Resend when configured', async () => {
+    const svc = new EmailService(
+      createConfigService({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'onboarding@example.com' }),
+    );
+    expect(svc.isEnabled()).toBe(true);
+
+    const result = await svc.send({ to: 'user@example.com', subject: 'Hello', text: 'Hi' });
+    expect(result).toEqual({ id: 'email-id' });
+
+    expect(jest.mocked(Resend)).toHaveBeenCalledWith('re_test');
+
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'onboarding@example.com',
+        to: 'user@example.com',
+        subject: 'Hello',
+        text: 'Hi',
+      }),
+    );
+  });
+
+  it('throws when subject is empty', async () => {
+    const svc = new EmailService(
+      createConfigService({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'onboarding@example.com' }),
+    );
+    await expect(
+      svc.send({ to: 'user@example.com', subject: '   ', text: 'Hi' }),
+    ).rejects.toMatchObject({ message: 'Email subject is required' });
+  });
+
+  it('supports html-only emails', async () => {
+    const svc = new EmailService(
+      createConfigService({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'onboarding@example.com' }),
+    );
+    const result = await svc.send({
+      to: 'user@example.com',
+      subject: 'Hello',
+      html: '<p>Hello</p>',
+    });
+    expect(result).toEqual({ id: 'email-id' });
+
+    const sent = sendMock.mock.calls[0]?.[0];
+    if (!sent || typeof sent !== 'object') {
+      throw new Error('Expected sent email payload');
+    }
+    expect(sent).toMatchObject({
+      to: 'user@example.com',
+      subject: 'Hello',
+      html: '<p>Hello</p>',
+    });
+    expect(sent).not.toHaveProperty('text');
+  });
+
+  it('maps provider errors', async () => {
+    sendMock.mockResolvedValueOnce({
+      data: null,
+      error: { name: 'rate_limited', message: 'Try later' },
+    });
+
+    const svc = new EmailService(
+      createConfigService({ RESEND_API_KEY: 're_test', EMAIL_FROM: 'onboarding@example.com' }),
+    );
+    await expect(
+      svc.send({ to: 'user@example.com', subject: 'Hello', text: 'Hi' }),
+    ).rejects.toMatchObject({
+      provider: 'resend',
+      message: 'Try later',
+      causeName: 'rate_limited',
+    });
+  });
+});

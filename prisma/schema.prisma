@@ -1,0 +1,247 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ExternalIdentityProvider {
+  GOOGLE
+}
+
+enum PushPlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
+enum FilePurpose {
+  PROFILE_IMAGE
+}
+
+enum FileStatus {
+  UPLOADING
+  ACTIVE
+  DELETED
+}
+
+model User {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String  @unique
+  emailVerifiedAt DateTime?
+  status          UserStatus @default(ACTIVE)
+  suspendedAt     DateTime?
+  suspendedReason String?
+
+  deletionRequestedAt        DateTime?
+  deletionScheduledFor       DateTime?
+  deletionRequestedSessionId String? @db.Uuid
+  deletionRequestedTraceId   String?
+  deletedAt                  DateTime?
+
+  profile UserProfile?
+  storedFiles StoredFile[]
+  passwordCredential PasswordCredential?
+  sessions           Session[]
+  externalIdentities ExternalIdentity[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([deletionScheduledFor])
+  @@index([deletedAt])
+}
+
+model StoredFile {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  ownerUserId String @db.Uuid
+  ownerUser   User   @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  purpose FilePurpose
+  status  FileStatus @default(UPLOADING)
+
+  bucket    String
+  objectKey String
+
+  contentType String
+  sizeBytes   Int
+
+  uploadedAt DateTime?
+  deletedAt  DateTime?
+  traceId    String?
+
+  profileImageOf UserProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bucket, objectKey])
+  @@index([ownerUserId, createdAt])
+}
+
+model ExternalIdentity {
+  id       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider ExternalIdentityProvider
+  subject  String
+  // Optional snapshot of the provider email claim at link time (PII).
+  // Not used for auth decisions; may drift if the user changes their email at the IdP.
+  email    String?
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, subject])
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model UserProfile {
+  userId String @id @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profileImageFileId String? @unique @db.Uuid
+  profileImageFile   StoredFile? @relation(fields: [profileImageFileId], references: [id], onDelete: SetNull)
+
+  displayName String?
+  givenName   String?
+  familyName  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordCredential {
+  userId String @id @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  passwordHash String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id     String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  deviceId   String?
+  deviceName String?
+  pushPlatform PushPlatform?
+  pushToken String? @unique @db.VarChar(2048)
+  pushTokenUpdatedAt DateTime?
+  pushTokenRevokedAt DateTime?
+  // Best-effort client metadata; treat as PII.
+  ip        String? @db.Inet
+  userAgent String? @db.VarChar(512)
+  // Enforces "one active session per (userId, deviceId)" when deviceId is provided.
+  // Revoked sessions must clear this field.
+  activeKey String? @unique
+
+  // Updated on successful refresh; used for sessions UI and incident response.
+  lastSeenAt DateTime @default(now())
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([revokedAt])
+  @@index([pushTokenRevokedAt])
+}
+
+model RefreshToken {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tokenHash String  @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  sessionId String  @db.Uuid
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  replacedById String? @unique @db.Uuid
+  replacedBy   RefreshToken? @relation("RefreshTokenReplacement", fields: [replacedById], references: [id])
+  replaces     RefreshToken? @relation("RefreshTokenReplacement")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([revokedAt])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([usedAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([usedAt])
+}
+
+enum UserAccountDeletionAction {
+  REQUESTED
+  CANCELED
+  FINALIZED
+}
+
+model UserAccountDeletionAudit {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId    String   @db.Uuid
+  actorSessionId String   @db.Uuid
+  targetUserId   String   @db.Uuid
+  action         UserAccountDeletionAction
+  traceId        String
+  createdAt      DateTime @default(now())
+
+  @@index([targetUserId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([traceId])
+}

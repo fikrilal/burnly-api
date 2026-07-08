@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "sourceMap": true
+  },
+  "include": ["apps/**/*.ts", "apps/**/*.d.ts", "libs/**/*.ts", "libs/**/*.d.ts"],
+  "exclude": ["test", "**/*.spec.ts", "**/*.test.ts", "node_modules", "dist"]
+}

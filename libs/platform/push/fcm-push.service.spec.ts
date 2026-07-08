@@ -1,0 +1,135 @@
+import { FcmPushService } from './fcm-push.service';
+import { PushErrorCode, PushSendError } from './push.types';
+import { createConfigService } from '../../../test/support/stubs';
+
+const initializeAppMock = jest.fn().mockReturnValue({ name: 'push' });
+const certMock = jest.fn().mockReturnValue({ kind: 'cert' });
+const applicationDefaultMock = jest.fn().mockReturnValue({ kind: 'adc' });
+const getAppsMock = jest.fn().mockReturnValue([]);
+
+const sendMock = jest.fn().mockResolvedValue('message-id');
+const getMessagingMock = jest.fn().mockReturnValue({ send: sendMock });
+
+jest.mock('firebase-admin/app', () => {
+  return {
+    initializeApp: (...args: unknown[]) => initializeAppMock(...args),
+    cert: (...args: unknown[]) => certMock(...args),
+    applicationDefault: (...args: unknown[]) => applicationDefaultMock(...args),
+    getApps: (...args: unknown[]) => getAppsMock(...args),
+  };
+});
+
+jest.mock('firebase-admin/messaging', () => {
+  return {
+    getMessaging: (...args: unknown[]) => getMessagingMock(...args),
+  };
+});
+
+describe('FcmPushService', () => {
+  beforeEach(() => {
+    initializeAppMock.mockClear();
+    certMock.mockClear();
+    applicationDefaultMock.mockClear();
+    getAppsMock.mockClear();
+    sendMock.mockClear();
+    getMessagingMock.mockClear();
+  });
+
+  it('is disabled when PUSH_PROVIDER is missing', () => {
+    const svc = new FcmPushService(createConfigService({}));
+    expect(svc.isEnabled()).toBe(false);
+  });
+
+  it('sends via firebase-admin messaging when configured', async () => {
+    const svc = new FcmPushService(
+      createConfigService({
+        PUSH_PROVIDER: 'FCM',
+        FCM_PROJECT_ID: 'project',
+        FCM_SERVICE_ACCOUNT_JSON: JSON.stringify({
+          project_id: 'project',
+          client_email: 'svc@example.com',
+          private_key: 'key',
+        }),
+      }),
+    );
+
+    expect(svc.isEnabled()).toBe(true);
+
+    const res = await svc.sendToToken({
+      token: 'token',
+      notification: { title: 'Hi', body: 'Body' },
+      data: { action: 'PING' },
+    });
+
+    expect(res).toEqual({ messageId: 'message-id' });
+    expect(initializeAppMock).toHaveBeenCalled();
+    expect(getMessagingMock).toHaveBeenCalled();
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: 'token',
+        notification: { title: 'Hi', body: 'Body' },
+        data: { action: 'PING' },
+      }),
+    );
+  });
+
+  it('sends when configured with base64 service account JSON', async () => {
+    const json = JSON.stringify({
+      project_id: 'project',
+      client_email: 'svc@example.com',
+      private_key: 'key',
+    });
+    const base64 = Buffer.from(json, 'utf8').toString('base64');
+
+    const svc = new FcmPushService(
+      createConfigService({
+        PUSH_PROVIDER: 'FCM',
+        FCM_PROJECT_ID: 'project',
+        FCM_SERVICE_ACCOUNT_JSON_BASE64: base64,
+      }),
+    );
+
+    expect(svc.isEnabled()).toBe(true);
+
+    const res = await svc.sendToToken({
+      token: 'token',
+      notification: { title: 'Hi', body: 'Body' },
+      data: { action: 'PING' },
+    });
+
+    expect(res).toEqual({ messageId: 'message-id' });
+    expect(certMock).toHaveBeenCalled();
+    expect(initializeAppMock).toHaveBeenCalled();
+  });
+
+  it('throws a non-retryable PushSendError for invalid token', async () => {
+    sendMock.mockRejectedValueOnce({
+      code: 'messaging/registration-token-not-registered',
+      message: 'unregistered',
+    });
+
+    const svc = new FcmPushService(
+      createConfigService({
+        PUSH_PROVIDER: 'FCM',
+        FCM_PROJECT_ID: 'project',
+        FCM_SERVICE_ACCOUNT_JSON: JSON.stringify({
+          project_id: 'project',
+          client_email: 'svc@example.com',
+          private_key: 'key',
+        }),
+      }),
+    );
+
+    try {
+      await svc.sendToToken({ token: 'token' });
+      throw new Error('Expected sendToToken to throw');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(PushSendError);
+      expect(err).toMatchObject({
+        retryable: false,
+        code: PushErrorCode.InvalidToken,
+        providerCode: 'messaging/registration-token-not-registered',
+      });
+    }
+  });
+});
