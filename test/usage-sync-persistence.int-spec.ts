@@ -1,10 +1,10 @@
-import { ConfigService } from '@nestjs/config';
 import { UserStatus } from '@prisma/client';
 import { PrismaService } from '../libs/platform/db/prisma.service';
 import { PrismaDailyUsageFactsRepository } from '../libs/features/usage-sync/infra/persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from '../libs/features/usage-sync/infra/persistence/prisma-sync-batches.repository';
 import { PrismaSyncDevicesRepository } from '../libs/features/usage-sync/infra/persistence/prisma-sync-devices.repository';
 import { UNKNOWN_MODEL_IDENTITY_KEY } from '../libs/features/usage-sync/app/model-identity';
+import { createConfigService } from './support/stubs';
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
 const skipDepsTests = process.env.SKIP_DEPS_TESTS === 'true';
@@ -13,15 +13,11 @@ const shouldSkip = skipDepsTests || !databaseUrl;
 const describeIfDb = shouldSkip ? describe.skip : describe;
 
 function createPrismaService(): PrismaService {
-  const config = {
-    get(key: string): string | boolean | undefined {
-      if (key === 'DATABASE_URL') return databaseUrl;
-      if (key === 'NODE_ENV') return 'development';
-      if (key === 'DATABASE_SSL_REJECT_UNAUTHORIZED') return true;
-      return undefined;
-    },
-  } as ConfigService;
-
+  const config = createConfigService({
+    DATABASE_URL: databaseUrl,
+    NODE_ENV: 'development',
+    DATABASE_SSL_REJECT_UNAUTHORIZED: true,
+  });
   return new PrismaService(config);
 }
 

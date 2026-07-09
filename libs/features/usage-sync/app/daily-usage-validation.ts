@@ -1,3 +1,4 @@
+import { parseRfc3339ToDate } from '../domain/calendar-date';
 import { buildDailyIdentityKey, isUsageDateString } from './daily-identity';
 import type {
   UsageCostKind,
@@ -15,40 +16,65 @@ export type ParsedCost = Readonly<{
   currency: string | null;
 }>;
 
-const COST_STATUSES = new Set<UsageCostStatus>([
-  'available',
-  'estimated',
-  'not_applicable',
-  'unavailable',
-]);
-
-const COST_KINDS = new Set<UsageCostKind>([
-  'source_reported',
-  'collector_calculated',
-  'collector_mixed',
-  'burnly_calculated',
-  'unknown',
-]);
-
-const RECORD_STATES = new Set<UsageRecordState>(['active', 'missing', 'removed']);
-const DATA_QUALITIES = new Set<UsageDataQuality>(['complete', 'partial']);
-
 const CURRENCY_RE = /^[A-Z]{3}$/;
 
 export function isCostStatus(value: unknown): value is UsageCostStatus {
-  return typeof value === 'string' && COST_STATUSES.has(value as UsageCostStatus);
+  if (typeof value !== 'string') return false;
+  switch (value) {
+    case 'available':
+    case 'estimated':
+    case 'not_applicable':
+    case 'unavailable':
+      return true;
+    default:
+      return false;
+  }
 }
 
 export function isCostKind(value: unknown): value is UsageCostKind {
-  return typeof value === 'string' && COST_KINDS.has(value as UsageCostKind);
+  if (typeof value !== 'string') return false;
+  switch (value) {
+    case 'source_reported':
+    case 'collector_calculated':
+    case 'collector_mixed':
+    case 'burnly_calculated':
+    case 'unknown':
+      return true;
+    default:
+      return false;
+  }
 }
 
 export function isRecordState(value: unknown): value is UsageRecordState {
-  return typeof value === 'string' && RECORD_STATES.has(value as UsageRecordState);
+  if (typeof value !== 'string') return false;
+  switch (value) {
+    case 'active':
+    case 'missing':
+    case 'removed':
+      return true;
+    default:
+      return false;
+  }
 }
 
 export function isDataQuality(value: unknown): value is UsageDataQuality {
-  return typeof value === 'string' && DATA_QUALITIES.has(value as UsageDataQuality);
+  if (typeof value !== 'string') return false;
+  switch (value) {
+    case 'complete':
+    case 'partial':
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function toUnknownRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    result[key] = Reflect.get(value, key);
+  }
+  return result;
 }
 
 /**
@@ -108,11 +134,11 @@ export function validateParentCost(
   fieldPrefix: string,
   issues: ValidationIssue[],
 ): ParsedCost | undefined {
-  if (cost === null || typeof cost !== 'object' || Array.isArray(cost)) {
+  const obj = toUnknownRecord(cost);
+  if (!obj) {
     issues.push({ field: fieldPrefix, message: 'must be an object' });
     return undefined;
   }
-  const obj = cost as Record<string, unknown>;
   const statusRaw = obj.status;
   if (!isCostStatus(statusRaw)) {
     issues.push({ field: `${fieldPrefix}.status`, message: 'invalid cost status' });
@@ -148,7 +174,6 @@ export function validateParentCost(
     };
   }
 
-  // not_applicable / unavailable → amount and currency must be null/omitted
   if (amountRaw !== undefined && amountRaw !== null) {
     issues.push({
       field: `${fieldPrefix}.amountMicros`,
@@ -174,18 +199,17 @@ export function validateModelCost(
   fieldPrefix: string,
   issues: ValidationIssue[],
 ): ParsedCost | undefined {
-  if (cost === null || typeof cost !== 'object' || Array.isArray(cost)) {
+  const obj = toUnknownRecord(cost);
+  if (!obj) {
     issues.push({ field: fieldPrefix, message: 'must be an object' });
     return undefined;
   }
-  const obj = cost as Record<string, unknown>;
   const statusRaw = obj.status;
   if (!isCostStatus(statusRaw)) {
     issues.push({ field: `${fieldPrefix}.status`, message: 'invalid cost status' });
     return undefined;
   }
 
-  // Model costs: estimated | unavailable preferred; allow same pairing rules
   let kind: UsageCostKind | null = null;
   if (obj.kind !== undefined && obj.kind !== null) {
     if (!isCostKind(obj.kind)) {
@@ -200,7 +224,6 @@ export function validateModelCost(
 
   if (statusRaw === 'available' || statusRaw === 'estimated') {
     if (kind === null) {
-      // default kind when amount present
       kind = 'unknown';
     }
     const amount = parseTokenCount(amountRaw, `${fieldPrefix}.amountMicros`, issues, {
@@ -309,12 +332,12 @@ export function parseIsoDateTime(
     issues.push({ field, message: 'must be an RFC 3339 timestamp string' });
     return undefined;
   }
-  const ms = Date.parse(value);
-  if (Number.isNaN(ms)) {
+  const parsed = parseRfc3339ToDate(value);
+  if (!parsed) {
     issues.push({ field, message: 'must be a valid RFC 3339 timestamp' });
     return undefined;
   }
-  return new Date(ms);
+  return parsed;
 }
 
 export { isUsageDateString };

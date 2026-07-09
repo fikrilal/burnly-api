@@ -1,19 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Put,
-  UseFilters,
-  UseGuards,
-} from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiOkResponse,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-} from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Put, UseFilters, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../../../../platform/auth/access-token.guard';
 import { CurrentPrincipal } from '../../../../platform/auth/current-principal.decorator';
 import type { AuthPrincipal } from '../../../../platform/auth/auth.types';
@@ -22,10 +8,7 @@ import { ApiErrorCodes } from '../../../../platform/http/openapi/api-error-codes
 import { SyncDevicesService } from '../../app/sync-devices.service';
 import { SyncErrorCode } from '../../app/usage-sync.error-codes';
 import { UsageSyncError } from '../../app/usage-sync.errors';
-import {
-  SyncDeviceEnvelopeDto,
-  UpsertSyncDeviceRequestDto,
-} from './dtos/sync-device.dto';
+import { SyncDeviceEnvelopeDto, UpsertSyncDeviceRequestDto } from './dtos/sync-device.dto';
 import { UsageSyncErrorFilter } from './usage-sync-error.filter';
 
 const CLIENT_DEVICE_ID_MAX = 128;

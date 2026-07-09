@@ -29,26 +29,26 @@ Add Postgres schema so burnly-api can later:
 
 ## Non-goals (Phase B)
 
-| Out of scope | Why |
-| --- | --- |
-| HTTP controllers / DTOs / OpenAPI routes | Phase C |
-| Identity reconstruction validation logic | Phase C (domain), may land pure helpers later |
-| Idempotency-Key middleware wiring | Phase D (platform already exists) |
-| Account-deletion job changes | Phase D (schema must allow cascade now) |
-| Web read query endpoints | Separate plan |
-| Storing sessions, projects, paths, collector JSON | Forbidden by ADR 0020 |
+| Out of scope                                      | Why                                           |
+| ------------------------------------------------- | --------------------------------------------- |
+| HTTP controllers / DTOs / OpenAPI routes          | Phase C                                       |
+| Identity reconstruction validation logic          | Phase C (domain), may land pure helpers later |
+| Idempotency-Key middleware wiring                 | Phase D (platform already exists)             |
+| Account-deletion job changes                      | Phase D (schema must allow cascade now)       |
+| Web read query endpoints                          | Separate plan                                 |
+| Storing sessions, projects, paths, collector JSON | Forbidden by ADR 0020                         |
 
 ## Recommended Phase B scope cut
 
 **Propose: B-schema + thin repository ports/adapters (no Nest HTTP module wiring).**
 
-| Include | Defer |
-| --- | --- |
-| Prisma enums + models + migration | Feature Nest module in `AppModule` |
-| `User` relations for cascade | Controllers |
+| Include                                                         | Defer                                  |
+| --------------------------------------------------------------- | -------------------------------------- |
+| Prisma enums + models + migration                               | Feature Nest module in `AppModule`     |
+| `User` relations for cascade                                    | Controllers                            |
 | Repository **ports** under `libs/features/usage-sync/app/ports` | Use-case services that call validation |
-| Prisma repository implementing upsert primitives | Full batch orchestration |
-| Unit/integration tests for unique constraints if cheap | E2E collect HTTP |
+| Prisma repository implementing upsert primitives                | Full batch orchestration               |
+| Unit/integration tests for unique constraints if cheap          | E2E collect HTTP                       |
 
 Rationale: Phase C should not redesign uniqueness mid-flight. Thin ports prove the
 schema is usable without shipping incomplete APIs.
@@ -72,11 +72,11 @@ Multi-device reporting (future reads): sum active facts across devices for a use
 
 ## Naming
 
-| Layer | Convention |
-| --- | --- |
-| Prisma model | PascalCase singular: `SyncDevice`, `DailyUsageFact`, … |
-| Table | Prisma default `SyncDevice` → map to snake tables if we prefer SQL style |
-| Columns | Prisma camelCase → `@map` snake_case for SQL readability |
+| Layer        | Convention                                                               |
+| ------------ | ------------------------------------------------------------------------ |
+| Prisma model | PascalCase singular: `SyncDevice`, `DailyUsageFact`, …                   |
+| Table        | Prisma default `SyncDevice` → map to snake tables if we prefer SQL style |
+| Columns      | Prisma camelCase → `@map` snake_case for SQL readability                 |
 
 **Proposal:** use `@map` / `@@map` to **snake_case tables and columns** so raw SQL
 and ops stay readable, matching common Postgres style. Existing auth models in
@@ -84,10 +84,10 @@ this repo mostly use Prisma default camelCase table names without `@map`.
 
 **Decision needed (pick one):**
 
-| Option | Choice |
-| --- | --- |
+| Option                                 | Choice                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------ |
 | **A (consistent with current schema)** | No `@map`; Prisma defaults (`SyncDevice`, `userId`, …) like `User` / `Session` |
-| **B (SQL-friendly)** | Explicit `@@map("sync_devices")` + column maps |
+| **B (SQL-friendly)**                   | Explicit `@@map("sync_devices")` + column maps                                 |
 
 **Recommendation: Option A** — stay consistent with existing `schema.prisma` and
 avoid a mixed mapping style in one file. Revisit only if ops strongly prefer SQL
@@ -155,18 +155,18 @@ Notes:
 
 ### `SyncDevice`
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | `Uuid` PK | `gen_random_uuid()` |
-| `userId` | `Uuid` FK → `User` | `onDelete: Cascade` |
-| `clientDeviceId` | `String` | desktop install id; **not** Session PK |
-| `displayName` | `String?` | optional hostname label |
-| `platform` | `SyncDevicePlatform` | required |
-| `appVersion` | `String` | last seen desktop semver |
-| `reportingTimezone` | `String` | last known IANA tz |
-| `lastSyncAt` | `DateTime?` | last successful daily-usage accept |
-| `lastClientRevision` | `BigInt?` | last accepted push revision for device |
-| `createdAt` / `updatedAt` | `DateTime` | standard |
+| Field                     | Type                 | Notes                                  |
+| ------------------------- | -------------------- | -------------------------------------- |
+| `id`                      | `Uuid` PK            | `gen_random_uuid()`                    |
+| `userId`                  | `Uuid` FK → `User`   | `onDelete: Cascade`                    |
+| `clientDeviceId`          | `String`             | desktop install id; **not** Session PK |
+| `displayName`             | `String?`            | optional hostname label                |
+| `platform`                | `SyncDevicePlatform` | required                               |
+| `appVersion`              | `String`             | last seen desktop semver               |
+| `reportingTimezone`       | `String`             | last known IANA tz                     |
+| `lastSyncAt`              | `DateTime?`          | last successful daily-usage accept     |
+| `lastClientRevision`      | `BigInt?`            | last accepted push revision for device |
+| `createdAt` / `updatedAt` | `DateTime`           | standard                               |
 
 **Constraints:**
 
@@ -193,34 +193,34 @@ login for correlation, but **no FK** between `Session` and `SyncDevice` in v1
 
 Parent daily aggregate for one device stream.
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | `Uuid` PK | server only |
-| `userId` | `Uuid` | denormalized for queries + deletion |
-| `deviceId` | `Uuid` FK → `SyncDevice` | `onDelete: Cascade` |
-| `sourceKey` | `String` | e.g. `claude-code` |
-| `identityKey` | `String` | full deterministic key |
-| `identityVersion` | `Int` | currently `1` |
-| `usageDate` | `Date` | `@db.Date` calendar date |
-| `aggregationTimezone` | `String` | IANA |
-| `inputTokens` | `BigInt?` | null = unavailable |
-| `outputTokens` | `BigInt?` | |
-| `cacheCreationTokens` | `BigInt?` | |
-| `cacheReadTokens` | `BigInt?` | |
-| `totalTokens` | `BigInt` | required, ≥ 0 (app-validated) |
-| `unclassifiedTokens` | `BigInt?` | |
-| `costStatus` | `UsageCostStatus` | |
-| `costKind` | `UsageCostKind` | |
-| `costAmountMicros` | `BigInt?` | null when unavailable / n/a |
-| `costCurrency` | `String?` | ISO 4217; `@db.Char(3)` when set |
-| `dataQuality` | `UsageDataQuality` | |
-| `recordState` | `UsageRecordState` | soft remove via `removed` |
-| `clientFirstSeenAt` | `DateTime` | from client RFC3339 |
-| `clientLastSeenAt` | `DateTime` | conflict helper |
-| `clientRemovedAt` | `DateTime?` | when removed |
-| `clientRevision` | `BigInt` | revision that last wrote this row |
-| `syncedAt` | `DateTime` | server receive time for last write |
-| `createdAt` / `updatedAt` | `DateTime` | |
+| Field                     | Type                     | Notes                               |
+| ------------------------- | ------------------------ | ----------------------------------- |
+| `id`                      | `Uuid` PK                | server only                         |
+| `userId`                  | `Uuid`                   | denormalized for queries + deletion |
+| `deviceId`                | `Uuid` FK → `SyncDevice` | `onDelete: Cascade`                 |
+| `sourceKey`               | `String`                 | e.g. `claude-code`                  |
+| `identityKey`             | `String`                 | full deterministic key              |
+| `identityVersion`         | `Int`                    | currently `1`                       |
+| `usageDate`               | `Date`                   | `@db.Date` calendar date            |
+| `aggregationTimezone`     | `String`                 | IANA                                |
+| `inputTokens`             | `BigInt?`                | null = unavailable                  |
+| `outputTokens`            | `BigInt?`                |                                     |
+| `cacheCreationTokens`     | `BigInt?`                |                                     |
+| `cacheReadTokens`         | `BigInt?`                |                                     |
+| `totalTokens`             | `BigInt`                 | required, ≥ 0 (app-validated)       |
+| `unclassifiedTokens`      | `BigInt?`                |                                     |
+| `costStatus`              | `UsageCostStatus`        |                                     |
+| `costKind`                | `UsageCostKind`          |                                     |
+| `costAmountMicros`        | `BigInt?`                | null when unavailable / n/a         |
+| `costCurrency`            | `String?`                | ISO 4217; `@db.Char(3)` when set    |
+| `dataQuality`             | `UsageDataQuality`       |                                     |
+| `recordState`             | `UsageRecordState`       | soft remove via `removed`           |
+| `clientFirstSeenAt`       | `DateTime`               | from client RFC3339                 |
+| `clientLastSeenAt`        | `DateTime`               | conflict helper                     |
+| `clientRemovedAt`         | `DateTime?`              | when removed                        |
+| `clientRevision`          | `BigInt`                 | revision that last wrote this row   |
+| `syncedAt`                | `DateTime`               | server receive time for last write  |
+| `createdAt` / `updatedAt` | `DateTime`               |                                     |
 
 **Constraints:**
 
@@ -257,21 +257,21 @@ generic `deletedAt` on this table. Keeps desktop semantics.
 
 Child breakdown under one daily parent.
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | `Uuid` PK | |
-| `dailyUsageFactId` | `Uuid` FK | `onDelete: Cascade` |
-| `userId` | `Uuid` | denormalized for wipe queries |
-| `rawModelId` | `String?` | null = unknown-model bucket |
-| `displayName` | `String?` | optional |
-| `providerKey` | `String?` | optional |
-| token fields | `BigInt?` | same null semantics |
-| `totalTokens` | `BigInt?` | breakdown only |
-| `costStatus` | `UsageCostStatus` | desktop: estimated \| unavailable typically |
-| `costKind` | `UsageCostKind?` | optional if only status set |
-| `costAmountMicros` | `BigInt?` | |
-| `costCurrency` | `String?` | |
-| `createdAt` / `updatedAt` | `DateTime` | |
+| Field                     | Type              | Notes                                       |
+| ------------------------- | ----------------- | ------------------------------------------- |
+| `id`                      | `Uuid` PK         |                                             |
+| `dailyUsageFactId`        | `Uuid` FK         | `onDelete: Cascade`                         |
+| `userId`                  | `Uuid`            | denormalized for wipe queries               |
+| `rawModelId`              | `String?`         | null = unknown-model bucket                 |
+| `displayName`             | `String?`         | optional                                    |
+| `providerKey`             | `String?`         | optional                                    |
+| token fields              | `BigInt?`         | same null semantics                         |
+| `totalTokens`             | `BigInt?`         | breakdown only                              |
+| `costStatus`              | `UsageCostStatus` | desktop: estimated \| unavailable typically |
+| `costKind`                | `UsageCostKind?`  | optional if only status set                 |
+| `costAmountMicros`        | `BigInt?`         |                                             |
+| `costCurrency`            | `String?`         |                                             |
+| `createdAt` / `updatedAt` | `DateTime`        |                                             |
 
 **Uniqueness for model children — important Postgres detail:**
 
@@ -308,26 +308,26 @@ use a transaction: deleteMany by parent id then createMany.
 
 Audit each push attempt (accepted or rejected after auth).
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `id` | `Uuid` PK | |
-| `userId` | `Uuid` FK / denorm | cascade with user |
-| `deviceId` | `Uuid?` FK | null if device missing / rejected early |
-| `clientBatchId` | `String` | mirrors Idempotency-Key / client batch id |
-| `contractVersion` | `Int` | |
-| `clientRevision` | `BigInt?` | from body when parsed |
-| `appVersion` | `String?` | |
-| `windowStartDate` | `Date?` | |
-| `windowEndDate` | `Date?` | |
-| `windowScope` | `SyncBatchScope?` | |
-| `status` | `SyncBatchStatus` | accepted / rejected |
-| `recordsReceived` | `Int` | |
-| `recordsUpserted` | `Int` | |
-| `recordsRemoved` | `Int` | |
-| `recordsUnchanged` | `Int` | |
-| `rejectCode` | `String?` | problem code if rejected |
-| `traceId` | `String?` | request correlation |
-| `createdAt` | `DateTime` | |
+| Field              | Type               | Notes                                     |
+| ------------------ | ------------------ | ----------------------------------------- |
+| `id`               | `Uuid` PK          |                                           |
+| `userId`           | `Uuid` FK / denorm | cascade with user                         |
+| `deviceId`         | `Uuid?` FK         | null if device missing / rejected early   |
+| `clientBatchId`    | `String`           | mirrors Idempotency-Key / client batch id |
+| `contractVersion`  | `Int`              |                                           |
+| `clientRevision`   | `BigInt?`          | from body when parsed                     |
+| `appVersion`       | `String?`          |                                           |
+| `windowStartDate`  | `Date?`            |                                           |
+| `windowEndDate`    | `Date?`            |                                           |
+| `windowScope`      | `SyncBatchScope?`  |                                           |
+| `status`           | `SyncBatchStatus`  | accepted / rejected                       |
+| `recordsReceived`  | `Int`              |                                           |
+| `recordsUpserted`  | `Int`              |                                           |
+| `recordsRemoved`   | `Int`              |                                           |
+| `recordsUnchanged` | `Int`              |                                           |
+| `rejectCode`       | `String?`          | problem code if rejected                  |
+| `traceId`          | `String?`          | request correlation                       |
+| `createdAt`        | `DateTime`         |                                           |
 
 **Constraints:**
 
@@ -354,13 +354,13 @@ double-write edge cases in Phase B.
 
 ## Cascade and account deletion
 
-| Parent | Child | onDelete |
-| --- | --- | --- |
-| `User` | `SyncDevice` | Cascade |
-| `User` | `DailyUsageFact` | Cascade (also via device) |
-| `User` | `SyncBatch` | Cascade |
-| `SyncDevice` | `DailyUsageFact` | Cascade |
-| `DailyUsageFact` | `DailyModelUsageFact` | Cascade |
+| Parent           | Child                 | onDelete                  |
+| ---------------- | --------------------- | ------------------------- |
+| `User`           | `SyncDevice`          | Cascade                   |
+| `User`           | `DailyUsageFact`      | Cascade (also via device) |
+| `User`           | `SyncBatch`           | Cascade                   |
+| `SyncDevice`     | `DailyUsageFact`      | Cascade                   |
+| `DailyUsageFact` | `DailyModelUsageFact` | Cascade                   |
 
 Denormalized `userId` on facts/batches enables:
 
@@ -406,18 +406,18 @@ using real Postgres (docker). No HTTP.
 
 ## Mapping: collect JSON → columns (reference)
 
-| Request field | Column |
-| --- | --- |
-| `clientDeviceId` | `SyncDevice.clientDeviceId` |
-| `platform` | `SyncDevice.platform` |
-| `appVersion` | `SyncDevice.appVersion` / batch |
-| `reportingTimezone` | `SyncDevice.reportingTimezone` |
-| `clientRevision` | fact + device last revision |
-| `fact.identityKey` | `identityKey` |
-| `fact.totalTokens` | `totalTokens` |
-| `fact.cost.status` | `costStatus` |
-| `fact.models[]` | `DailyModelUsageFact` rows |
-| `Idempotency-Key` | not a fact column; platform + optional batch |
+| Request field       | Column                                       |
+| ------------------- | -------------------------------------------- |
+| `clientDeviceId`    | `SyncDevice.clientDeviceId`                  |
+| `platform`          | `SyncDevice.platform`                        |
+| `appVersion`        | `SyncDevice.appVersion` / batch              |
+| `reportingTimezone` | `SyncDevice.reportingTimezone`               |
+| `clientRevision`    | fact + device last revision                  |
+| `fact.identityKey`  | `identityKey`                                |
+| `fact.totalTokens`  | `totalTokens`                                |
+| `fact.cost.status`  | `costStatus`                                 |
+| `fact.models[]`     | `DailyModelUsageFact` rows                   |
+| `Idempotency-Key`   | not a fact column; platform + optional batch |
 
 ## Migration plan
 
@@ -431,13 +431,13 @@ Migration must be forward-only; no destructive changes to auth tables.
 
 ## Testing (Phase B)
 
-| Test | Intent |
-| --- | --- |
-| Migrate on empty DB | schema applies |
-| Unique `(userId, deviceId, identityKey)` | second insert conflicts |
-| Cascade device → facts | delete device removes facts |
-| Model identity unique per parent | sentinel unknown bucket single row |
-| Optional repo test | upsert then replace children |
+| Test                                     | Intent                             |
+| ---------------------------------------- | ---------------------------------- |
+| Migrate on empty DB                      | schema applies                     |
+| Unique `(userId, deviceId, identityKey)` | second insert conflicts            |
+| Cascade device → facts                   | delete device removes facts        |
+| Model identity unique per parent         | sentinel unknown bucket single row |
+| Optional repo test                       | upsert then replace children       |
 
 Skip full e2e auth+HTTP until Phase C/E.
 
@@ -445,18 +445,18 @@ Skip full e2e auth+HTTP until Phase C/E.
 
 Please confirm or override:
 
-| # | Topic | Proposal | Your call |
-| --- | --- | --- | --- |
-| 1 | Phase B depth | Schema + thin repos | Schema-only? |
-| 2 | Table naming | Match existing Prisma style (no snake `@map`) | OK? |
-| 3 | Model null uniqueness | `modelIdentityKey` sentinel | Partial unique SQL instead? |
-| 4 | Token types | `BigInt` | `Int` if you prefer simpler TS? |
-| 5 | Cost kind on models | Optional `UsageCostKind?` | Always required like parent? |
-| 6 | `SyncBatch` in B | Include table now | Defer table to Phase D? |
-| 7 | Batch unique client id | No unique in v1 | Unique (user, device, batchId)? |
-| 8 | `lastClientRevision` on device | Yes | Derive only from facts? |
-| 9 | `UsageDataQuality` enum | `complete` \| `partial` only | Free string instead? |
-| 10 | Platform enum | strict 3 values | Free string for forward compat? |
+| #   | Topic                          | Proposal                                      | Your call                       |
+| --- | ------------------------------ | --------------------------------------------- | ------------------------------- |
+| 1   | Phase B depth                  | Schema + thin repos                           | Schema-only?                    |
+| 2   | Table naming                   | Match existing Prisma style (no snake `@map`) | OK?                             |
+| 3   | Model null uniqueness          | `modelIdentityKey` sentinel                   | Partial unique SQL instead?     |
+| 4   | Token types                    | `BigInt`                                      | `Int` if you prefer simpler TS? |
+| 5   | Cost kind on models            | Optional `UsageCostKind?`                     | Always required like parent?    |
+| 6   | `SyncBatch` in B               | Include table now                             | Defer table to Phase D?         |
+| 7   | Batch unique client id         | No unique in v1                               | Unique (user, device, batchId)? |
+| 8   | `lastClientRevision` on device | Yes                                           | Derive only from facts?         |
+| 9   | `UsageDataQuality` enum        | `complete` \| `partial` only                  | Free string instead?            |
+| 10  | Platform enum                  | strict 3 values                               | Free string for forward compat? |
 
 **Defaults if no feedback:** 1 schema+thin repos, 2 no map, 3 sentinel, 4 BigInt,
 5 optional kind on models, 6 include SyncBatch, 7 no unique batch id, 8 yes on

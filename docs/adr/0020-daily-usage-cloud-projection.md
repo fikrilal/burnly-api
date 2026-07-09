@@ -59,16 +59,16 @@ timezone — not that a separate “enable sync” toggle is required.
 
 **Must not store (v1 / never by default):**
 
-| Data | Rule |
-| --- | --- |
-| Project paths | Never |
-| Path fingerprints | Never (v1) |
-| Source session ids / session rows | Not in v1 |
-| Collector raw JSON / protobuf | Never |
-| Prompts / responses / source code / files | Never |
-| Credentials / API keys | Never |
-| Local SQLite integer PKs as identities | Never |
-| Local diagnostics payloads | No |
+| Data                                      | Rule       |
+| ----------------------------------------- | ---------- |
+| Project paths                             | Never      |
+| Path fingerprints                         | Never (v1) |
+| Source session ids / session rows         | Not in v1  |
+| Collector raw JSON / protobuf             | Never      |
+| Prompts / responses / source code / files | Never      |
+| Credentials / API keys                    | Never      |
+| Local SQLite integer PKs as identities    | Never      |
+| Local diagnostics payloads                | No         |
 
 Server validation must reject payloads that include forbidden free-text privacy
 fields if clients send them by mistake (exact reject rules in collect DTO design).

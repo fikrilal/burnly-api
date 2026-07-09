@@ -1,4 +1,8 @@
-import type { UpsertDailyUsageFactInput, UpsertDailyUsageFactResult } from '../usage-sync.types';
+import type {
+  UpsertDailyUsageFactInput,
+  UpsertDailyUsageFactResult,
+  UsageRecordState,
+} from '../usage-sync.types';
 
 export type CommitDailyUsagePushInput = Readonly<{
   deviceId: string;
@@ -8,7 +12,7 @@ export type CommitDailyUsagePushInput = Readonly<{
   reportingTimezone: string;
   facts: readonly UpsertDailyUsageFactInput[];
   /** Parallel to facts — used for response/audit count mapping after upsert outcomes. */
-  factRecordStates: readonly import('../usage-sync.types').UsageRecordState[];
+  factRecordStates: readonly UsageRecordState[];
   batch: Readonly<{
     userId: string;
     clientBatchId?: string | null;

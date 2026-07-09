@@ -71,12 +71,12 @@ User
 
 ### 3) Multi-device policy (v1)
 
-| Option | Decision |
-| --- | --- |
-| Storage | Separate streams per device |
-| User-level reports (future web) | **Sum** active facts across the user's devices for the selected date/timezone window |
-| Cross-device “union” / dedupe of the same source+date | **Not** in v1 — two machines can both have real usage on the same calendar day |
-| Cross-device overwrite of the same identity | **Impossible** — `device_id` is part of uniqueness |
+| Option                                                | Decision                                                                             |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Storage                                               | Separate streams per device                                                          |
+| User-level reports (future web)                       | **Sum** active facts across the user's devices for the selected date/timezone window |
+| Cross-device “union” / dedupe of the same source+date | **Not** in v1 — two machines can both have real usage on the same calendar day       |
+| Cross-device overwrite of the same identity           | **Impossible** — `device_id` is part of uniqueness                                   |
 
 Conflict policy **within one device**:
 
@@ -125,11 +125,11 @@ and dual-read only if needed.
 
 ### 7) Suggested limits (publish in OpenAPI later)
 
-| Limit | Default |
-| --- | --- |
-| Max facts per request | 1000 |
-| Max models per fact | 100 |
-| Max body size | 1–2 MiB |
+| Limit                 | Default |
+| --------------------- | ------- |
+| Max facts per request | 1000    |
+| Max models per fact   | 100     |
+| Max body size         | 1–2 MiB |
 
 Oversize → `SYNC_PAYLOAD_TOO_LARGE` or platform 413 mapping as implemented.
 

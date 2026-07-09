@@ -26,8 +26,7 @@ export class PrismaSyncDevicesRepository implements SyncDevicesRepository {
 
   async upsertByClientDeviceId(input: UpsertSyncDeviceInput): Promise<SyncDeviceRecord> {
     const client = this.prisma.getClient();
-    const displayName =
-      input.displayName === undefined ? undefined : (input.displayName ?? null);
+    const displayName = input.displayName === undefined ? undefined : (input.displayName ?? null);
 
     const row = await client.syncDevice.upsert({
       where: {

@@ -16,12 +16,12 @@ one or more execution plans under `docs/exec-plans/active/` using
 
 ## Document map
 
-| Document | Role |
-| --- | --- |
+| Document                                            | Role                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `docs/planning/desktop-collect-api-requirements.md` | **Contract source of truth** for collect request/response field names, errors, acceptance |
-| `docs/planning/cloud-sync-backend-handoff.md` | Background: desktop schema meaning, privacy exclusions, multi-device storage sketch |
-| **This document** | High-level backend implementation sequence for collect v1 |
-| `docs/exec-plans/active/*` | Later: concrete PR-sized work units |
+| `docs/planning/cloud-sync-backend-handoff.md`       | Background: desktop schema meaning, privacy exclusions, multi-device storage sketch       |
+| **This document**                                   | High-level backend implementation sequence for collect v1                                 |
+| `docs/exec-plans/active/*`                          | Later: concrete PR-sized work units                                                       |
 
 If this plan and the handoff disagree on **collect endpoint field names**, the
 **requirements doc wins**. If they disagree on **privacy defaults** (what may
@@ -134,40 +134,40 @@ Rules:
 
 ### Already exists (reuse)
 
-| Method | Path |
-| --- | --- |
-| `POST` | `/v1/auth/password/register` |
-| `POST` | `/v1/auth/password/login` |
-| `POST` | `/v1/auth/oidc/exchange` |
-| `POST` | `/v1/auth/refresh` |
-| `POST` | `/v1/auth/logout` |
-| `GET` | `/v1/me` |
-| Account deletion endpoints under `/v1/me/account-deletion/*` | as already shipped |
+| Method                                                       | Path                         |
+| ------------------------------------------------------------ | ---------------------------- |
+| `POST`                                                       | `/v1/auth/password/register` |
+| `POST`                                                       | `/v1/auth/password/login`    |
+| `POST`                                                       | `/v1/auth/oidc/exchange`     |
+| `POST`                                                       | `/v1/auth/refresh`           |
+| `POST`                                                       | `/v1/auth/logout`            |
+| `GET`                                                        | `/v1/me`                     |
+| Account deletion endpoints under `/v1/me/account-deletion/*` | as already shipped           |
 
 Desktop **must** send a stable install `deviceId` / `deviceName` on auth so
 sessions bind to the machine (see requirements).
 
 ### New endpoints
 
-| Method | Path | Priority |
-| --- | --- | --- |
-| `PUT` | `/v1/sync/devices/{clientDeviceId}` | Required |
-| `POST` | `/v1/sync/daily-usage` | Required |
-| `GET` | `/v1/sync/devices/{clientDeviceId}` | Optional but useful; include if cheap |
+| Method | Path                                | Priority                              |
+| ------ | ----------------------------------- | ------------------------------------- |
+| `PUT`  | `/v1/sync/devices/{clientDeviceId}` | Required                              |
+| `POST` | `/v1/sync/daily-usage`              | Required                              |
+| `GET`  | `/v1/sync/devices/{clientDeviceId}` | Optional but useful; include if cheap |
 
 Full DTO rules, cost pairing, identity reconstruction, batch limits, and error
 handling: **`desktop-collect-api-requirements.md`**.
 
 ### Suggested problem codes
 
-| Code | When |
-| --- | --- |
-| `SYNC_CONTRACT_UNSUPPORTED` | unsupported `contractVersion` |
-| `SYNC_DEVICE_NOT_FOUND` | push references unknown device for user |
-| `SYNC_DEVICE_MISMATCH` | device not owned by caller (should be rare) |
-| `SYNC_PAYLOAD_TOO_LARGE` | over batch / body limits |
-| `SYNC_IDENTITY_INVALID` | `identityKey` ≠ reconstructed key |
-| `SYNC_REVISION_STALE` | optional; only if we reject lower revision |
+| Code                        | When                                        |
+| --------------------------- | ------------------------------------------- |
+| `SYNC_CONTRACT_UNSUPPORTED` | unsupported `contractVersion`               |
+| `SYNC_DEVICE_NOT_FOUND`     | push references unknown device for user     |
+| `SYNC_DEVICE_MISMATCH`      | device not owned by caller (should be rare) |
+| `SYNC_PAYLOAD_TOO_LARGE`    | over batch / body limits                    |
+| `SYNC_IDENTITY_INVALID`     | `identityKey` ≠ reconstructed key           |
+| `SYNC_REVISION_STALE`       | optional; only if we reject lower revision  |
 
 Reuse global codes for auth, validation envelope, and idempotency
 (`UNAUTHORIZED`, `VALIDATION_FAILED`, `IDEMPOTENCY_IN_PROGRESS`, etc.).
@@ -406,12 +406,12 @@ requirements doc as a draft.
 
 ## Testing strategy (high level)
 
-| Layer | What |
-| --- | --- |
-| Unit | Identity key rebuild, cost pairing, token null rules, revision compare |
-| Integration | Prisma upsert uniqueness, child replace, soft remove |
-| E2E HTTP | Auth + device PUT + daily POST fixture; idempotent replay; 401/400 |
-| Deletion | User with facts → deletion job → zero residual rows |
+| Layer       | What                                                                   |
+| ----------- | ---------------------------------------------------------------------- |
+| Unit        | Identity key rebuild, cost pairing, token null rules, revision compare |
+| Integration | Prisma upsert uniqueness, child replace, soft remove                   |
+| E2E HTTP    | Auth + device PUT + daily POST fixture; idempotent replay; 401/400     |
+| Deletion    | User with facts → deletion job → zero residual rows                    |
 
 Prefer fixtures from `desktop-collect-api-requirements.md` as golden payloads.
 
@@ -425,24 +425,24 @@ Prefer fixtures from `desktop-collect-api-requirements.md` as golden payloads.
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| DTO drift between docs and OpenAPI | Requirements win until OpenAPI ships; then OpenAPI is client contract |
-| Partial batch complexity | All-or-nothing validation in v1 |
-| Multi-device double count confusion | Document sum-across-devices; namespace by device in storage |
-| Rolling window treated as full resync | Never delete out-of-window history on `scope=rolling` |
-| Account deletion misses tables | Explicit wipe checklist + test in Phase D |
-| Overbuilding web reads early | Keep read APIs out of this plan |
+| Risk                                  | Mitigation                                                            |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| DTO drift between docs and OpenAPI    | Requirements win until OpenAPI ships; then OpenAPI is client contract |
+| Partial batch complexity              | All-or-nothing validation in v1                                       |
+| Multi-device double count confusion   | Document sum-across-devices; namespace by device in storage           |
+| Rolling window treated as full resync | Never delete out-of-window history on `scope=rolling`                 |
+| Account deletion misses tables        | Explicit wipe checklist + test in Phase D                             |
+| Overbuilding web reads early          | Keep read APIs out of this plan                                       |
 
 ## Open questions (non-blocking defaults)
 
 Use defaults unless product overrides before Phase A ADR:
 
-1. **Rolling window (client):** 90 days.  
+1. **Rolling window (client):** 90 days.
 2. **Cloud retention:** keep history until a retention policy exists; hard
-   requirement is account-deletion wipe.  
-3. **Experimental sources:** accept unknown `sourceKey` strings; do not crash.  
-4. **Cost:** store when valid; web may show tokens-only first.  
+   requirement is account-deletion wipe.
+3. **Experimental sources:** accept unknown `sourceKey` strings; do not crash.
+4. **Cost:** store when valid; web may show tokens-only first.
 5. **GET device:** include in Phase C if low cost; otherwise defer to a small
    follow-up exec plan.
 

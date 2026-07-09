@@ -1,4 +1,13 @@
-import { Body, Controller, HttpCode, Post, Req, UseFilters, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  UseFilters,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { FastifyRequest } from 'fastify';
 import { AccessTokenGuard } from '../../../../platform/auth/access-token.guard';
@@ -10,10 +19,7 @@ import { ApiIdempotencyKeyHeader } from '../../../../platform/http/openapi/api-i
 import { ApiErrorCodes } from '../../../../platform/http/openapi/api-error-codes.decorator';
 import { PushDailyUsageService } from '../../app/push-daily-usage.service';
 import { SyncErrorCode } from '../../app/usage-sync.error-codes';
-import {
-  PushDailyUsageEnvelopeDto,
-  PushDailyUsageRequestDto,
-} from './dtos/push-daily-usage.dto';
+import { PushDailyUsageEnvelopeDto, PushDailyUsageRequestDto } from './dtos/push-daily-usage.dto';
 import { RedisDailyUsagePushRateLimiter } from '../rate-limit/redis-daily-usage-push-rate-limiter';
 import { UsageSyncErrorFilter } from './usage-sync-error.filter';
 
@@ -27,7 +33,7 @@ export class DailyUsageController {
   ) {}
 
   @Post('daily-usage')
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @UseGuards(AccessTokenGuard)
   @ApiBearerAuth('access-token')
   @ApiOperation({

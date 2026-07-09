@@ -19,9 +19,7 @@ describe('env.runtime', () => {
 
   describe('deriveServiceName', () => {
     it('defaults base service name when unset', () => {
-      expect(deriveServiceName({ otelServiceName: undefined, role: 'api' })).toBe(
-        'burnly-api-api',
-      );
+      expect(deriveServiceName({ otelServiceName: undefined, role: 'api' })).toBe('burnly-api-api');
     });
 
     it('uses configured OTEL_SERVICE_NAME', () => {

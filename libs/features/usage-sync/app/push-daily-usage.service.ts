@@ -11,6 +11,7 @@ import {
   validateIdentityKey,
   validateModelCost,
   validateParentCost,
+  toUnknownRecord,
   validateWindow,
   type ValidationIssue,
 } from './daily-usage-validation';
@@ -64,8 +65,19 @@ export type PushDailyUsageResult = Readonly<{
 }>;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
+  return toUnknownRecord(value);
+}
+
+function optionalStringField(
+  value: unknown,
+  field: string,
+  issues: ValidationIssue[],
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  issues.push({ field, message: 'must be string or null' });
+  return undefined;
 }
 
 function parseFact(
@@ -96,7 +108,11 @@ function parseFact(
     issues.push({ field: `${prefix}.sourceKey`, message: 'required string' });
     ok = false;
   }
-  if (typeof identityVersion !== 'number' || !Number.isInteger(identityVersion) || identityVersion < 1) {
+  if (
+    typeof identityVersion !== 'number' ||
+    !Number.isInteger(identityVersion) ||
+    identityVersion < 1
+  ) {
     issues.push({ field: `${prefix}.identityVersion`, message: 'must be integer >= 1' });
     ok = false;
   }
@@ -226,37 +242,35 @@ function parseFact(
       );
       const mCr = parseTokenCount(modelObj.cacheReadTokens, `${mPrefix}.cacheReadTokens`, issues);
 
-      let rawModelId: string | null | undefined = undefined;
-      if (modelObj.rawModelId === null) rawModelId = null;
-      else if (modelObj.rawModelId === undefined) rawModelId = undefined;
-      else if (typeof modelObj.rawModelId === 'string') rawModelId = modelObj.rawModelId;
-      else {
-        issues.push({ field: `${mPrefix}.rawModelId`, message: 'must be string or null' });
+      const rawModelId = optionalStringField(modelObj.rawModelId, `${mPrefix}.rawModelId`, issues);
+      const displayName = optionalStringField(
+        modelObj.displayName,
+        `${mPrefix}.displayName`,
+        issues,
+      );
+      const providerKey = optionalStringField(
+        modelObj.providerKey,
+        `${mPrefix}.providerKey`,
+        issues,
+      );
+      if (
+        (modelObj.rawModelId !== undefined &&
+          modelObj.rawModelId !== null &&
+          typeof modelObj.rawModelId !== 'string') ||
+        (modelObj.displayName !== undefined &&
+          modelObj.displayName !== null &&
+          typeof modelObj.displayName !== 'string') ||
+        (modelObj.providerKey !== undefined &&
+          modelObj.providerKey !== null &&
+          typeof modelObj.providerKey !== 'string')
+      ) {
         ok = false;
       }
 
       models.push({
         rawModelId,
-        displayName:
-          modelObj.displayName === null || modelObj.displayName === undefined
-            ? (modelObj.displayName as null | undefined)
-            : typeof modelObj.displayName === 'string'
-              ? modelObj.displayName
-              : (() => {
-                  issues.push({ field: `${mPrefix}.displayName`, message: 'must be string or null' });
-                  ok = false;
-                  return null;
-                })(),
-        providerKey:
-          modelObj.providerKey === null || modelObj.providerKey === undefined
-            ? (modelObj.providerKey as null | undefined)
-            : typeof modelObj.providerKey === 'string'
-              ? modelObj.providerKey
-              : (() => {
-                  issues.push({ field: `${mPrefix}.providerKey`, message: 'must be string or null' });
-                  ok = false;
-                  return null;
-                })(),
+        displayName,
+        providerKey,
         inputTokens: mIn === undefined ? undefined : mIn,
         outputTokens: mOut === undefined ? undefined : mOut,
         cacheCreationTokens: mCc === undefined ? undefined : mCc,
@@ -422,7 +436,8 @@ export class PushDailyUsageService {
     if (factIssues.length > 0) {
       const payloadTooLarge = factIssues.some(
         (issue) =>
-          issue.field.endsWith('.models') && issue.message.includes(`at most ${MAX_MODELS_PER_FACT}`),
+          issue.field.endsWith('.models') &&
+          issue.message.includes(`at most ${MAX_MODELS_PER_FACT}`),
       );
       throw new UsageSyncError({
         status: 400,

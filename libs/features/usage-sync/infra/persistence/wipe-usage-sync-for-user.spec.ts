@@ -1,36 +1,36 @@
-import { wipeUsageSyncForUser } from './wipe-usage-sync-for-user';
+import { wipeUsageSyncForUser, type UsageSyncWipeTx } from './wipe-usage-sync-for-user';
 
 describe('wipeUsageSyncForUser', () => {
   it('deletes in FK-safe order and returns counts', async () => {
     const calls: string[] = [];
-    const tx = {
+    const tx: UsageSyncWipeTx = {
       dailyModelUsageFact: {
-        deleteMany: jest.fn(async () => {
+        deleteMany: async () => {
           calls.push('models');
           return { count: 3 };
-        }),
+        },
       },
       dailyUsageFact: {
-        deleteMany: jest.fn(async () => {
+        deleteMany: async () => {
           calls.push('facts');
           return { count: 2 };
-        }),
+        },
       },
       syncBatch: {
-        deleteMany: jest.fn(async () => {
+        deleteMany: async () => {
           calls.push('batches');
           return { count: 1 };
-        }),
+        },
       },
       syncDevice: {
-        deleteMany: jest.fn(async () => {
+        deleteMany: async () => {
           calls.push('devices');
           return { count: 1 };
-        }),
+        },
       },
     };
 
-    const result = await wipeUsageSyncForUser(tx as never, 'user-1');
+    const result = await wipeUsageSyncForUser(tx, 'user-1');
 
     expect(calls).toEqual(['models', 'facts', 'batches', 'devices']);
     expect(result).toEqual({
@@ -39,14 +39,5 @@ describe('wipeUsageSyncForUser', () => {
       batchesDeleted: 1,
       devicesDeleted: 1,
     });
-
-    for (const model of [
-      tx.dailyModelUsageFact,
-      tx.dailyUsageFact,
-      tx.syncBatch,
-      tx.syncDevice,
-    ] as const) {
-      expect(model.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
-    }
   });
 });

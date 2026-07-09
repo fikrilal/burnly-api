@@ -174,23 +174,20 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
 
   it('rejects over-limit facts with SYNC_PAYLOAD_TOO_LARGE', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
-    const baseFact = (canonicalFixture(clientDeviceId).facts as unknown[])[0] as Record<
-      string,
-      unknown
-    >;
+    const sampleFacts = canonicalFixture(clientDeviceId).facts;
+    const baseFact = sampleFacts[0];
+    if (baseFact === undefined) {
+      throw new Error('expected canonical fixture to include a fact');
+    }
     const facts = Array.from({ length: MAX_FACTS_PER_BATCH + 1 }, (_, i) => ({
       ...baseFact,
       identityKey: `claude-code:daily:v1:UTC:2026-07-08`,
-      // Keep same identity — validation runs after size check for top-level count
       sourceKey: 'claude-code',
       usageDate: '2026-07-08',
       totalTokens: i + 1,
     }));
 
-    const res = await push(
-      accessToken,
-      canonicalFixture(clientDeviceId, { facts }),
-    ).expect(400);
+    const res = await push(accessToken, canonicalFixture(clientDeviceId, { facts })).expect(400);
 
     expect(res.body.code).toBe('SYNC_PAYLOAD_TOO_LARGE');
 
@@ -203,8 +200,14 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
   it('rejects invalid identityKey without writing', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
 
-    const fixture = canonicalFixture(clientDeviceId);
-    (fixture.facts[0] as Record<string, unknown>).identityKey = 'wrong-key';
+    const fixture = canonicalFixture(clientDeviceId, {
+      facts: [
+        {
+          ...canonicalFixture(clientDeviceId).facts[0],
+          identityKey: 'wrong-key',
+        },
+      ],
+    });
 
     const res = await push(accessToken, fixture).expect(400);
 
@@ -235,7 +238,10 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
 
   it('higher revision updates totals; lower revision is ignored (unchanged)', async () => {
     const { accessToken, clientDeviceId } = await registerAndDevice();
-    const baseFact = canonicalFixture(clientDeviceId).facts[0] as Record<string, unknown>;
+    const baseFact = canonicalFixture(clientDeviceId).facts[0];
+    if (baseFact === undefined) {
+      throw new Error('expected canonical fixture to include a fact');
+    }
 
     await push(accessToken, canonicalFixture(clientDeviceId, { clientRevision: 1 })).expect(200);
 

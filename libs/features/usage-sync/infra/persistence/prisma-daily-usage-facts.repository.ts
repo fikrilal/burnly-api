@@ -172,7 +172,9 @@ export class PrismaDailyUsageFactsRepository implements DailyUsageFactsRepositor
     return withTransactionRetry(client, async (tx) => upsertFactWithModelsTx(tx, input));
   }
 
-  async commitDailyUsagePush(input: CommitDailyUsagePushInput): Promise<CommitDailyUsagePushResult> {
+  async commitDailyUsagePush(
+    input: CommitDailyUsagePushInput,
+  ): Promise<CommitDailyUsagePushResult> {
     const client = this.prisma.getClient();
 
     return withTransactionRetry(client, async (tx) => {
@@ -185,7 +187,8 @@ export class PrismaDailyUsageFactsRepository implements DailyUsageFactsRepositor
       let removed = 0;
       let unchanged = 0;
       for (let i = 0; i < factResults.length; i += 1) {
-        const result = factResults[i]!;
+        const result = factResults[i];
+        if (result === undefined) continue;
         const state = input.factRecordStates[i] ?? 'active';
         if (result.outcome === 'ignored_stale') {
           unchanged += 1;

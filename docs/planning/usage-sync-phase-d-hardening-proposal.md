@@ -36,24 +36,24 @@ After Phase D, burnly-api collect is safe for real desktop clients:
 
 ## Non-goals (Phase D)
 
-| Out of scope | Why |
-| --- | --- |
-| Web read/report APIs (`GET /v1/usage/*`) | Separate plan |
-| Desktop client exporter / Settings UI | Desktop repo |
-| Cloud retention policy (e.g. 2 years) | Later ADR |
+| Out of scope                                   | Why                  |
+| ---------------------------------------------- | -------------------- |
+| Web read/report APIs (`GET /v1/usage/*`)       | Separate plan        |
+| Desktop client exporter / Settings UI          | Desktop repo         |
+| Cloud retention policy (e.g. 2 years)          | Later ADR            |
 | Full resync / `scope: "full"` tombstone sweeps | Deferred by ADR 0021 |
-| Changing auth token model | Already stable |
-| Mandatory Google-only login | Product later |
+| Changing auth token model                      | Already stable       |
+| Mandatory Google-only login                    | Product later        |
 
 ## Current state (as of Phase C)
 
-| Area | Today | Gap |
-| --- | --- | --- |
-| Idempotency | `@Idempotent` on push, **optional** key | Desktop needs reliable replay; may want **required** key |
-| Batch limits | DTO soft caps: 1000 facts, 100 models | Not published as `SYNC_PAYLOAD_TOO_LARGE`; no body-size mapping |
+| Area             | Today                                                  | Gap                                                                              |
+| ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Idempotency      | `@Idempotent` on push, **optional** key                | Desktop needs reliable replay; may want **required** key                         |
+| Batch limits     | DTO soft caps: 1000 facts, 100 models                  | Not published as `SYNC_PAYLOAD_TOO_LARGE`; no body-size mapping                  |
 | Account deletion | Soft-delete user; scrub PII; drop sessions/credentials | **Does not wipe** `SyncDevice` / facts / batches (User row remains → no cascade) |
-| Rate limit | None on sync routes | Auth/profile have Redis limiters; sync has none |
-| Logging | Platform request logs | Ensure no tokens/payload dumps; device id OK |
+| Rate limit       | None on sync routes                                    | Auth/profile have Redis limiters; sync has none                                  |
+| Logging          | Platform request logs                                  | Ensure no tokens/payload dumps; device id OK                                     |
 
 **Critical privacy note:** account finalization keeps the `User` row (`status=DELETED`, scrubbed email). Because the row is not hard-deleted, **Postgres `ON DELETE CASCADE` never runs**. Usage data must be **explicitly deleted by `userId`**.
 
@@ -61,10 +61,10 @@ After Phase D, burnly-api collect is safe for real desktop clients:
 
 Split into **two exec plans** (matches parent plan):
 
-| Exec | Focus | Risk |
-| --- | --- | --- |
-| **D1 / 04** | Idempotency policy + payload limits + rate limit + logging | medium |
-| **D2 / 05** | Account-deletion wipe of all usage-sync tables | high (lifecycle) |
+| Exec        | Focus                                                      | Risk             |
+| ----------- | ---------------------------------------------------------- | ---------------- |
+| **D1 / 04** | Idempotency policy + payload limits + rate limit + logging | medium           |
+| **D2 / 05** | Account-deletion wipe of all usage-sync tables             | high (lifecycle) |
 
 Optional: merge into one PR if small, but keep checklists separate for review.
 
@@ -74,13 +74,13 @@ Optional: merge into one PR if small, but keep checklists separate for review.
 
 ### Proposal
 
-| Decision | Choice |
-| --- | --- |
-| Header | `Idempotency-Key` (existing platform Redis store) |
-| Scope | `sync.dailyUsage.push` (already set) |
-| Required? | **Yes for v1 production collect** (`@Idempotent({ required: true, scopeKey: 'sync.dailyUsage.push' })`) |
-| TTL | Keep platform default (24h) unless product wants longer |
-| Concurrent same key | `IDEMPOTENCY_IN_PROGRESS` / wait (platform behavior) |
+| Decision            | Choice                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| Header              | `Idempotency-Key` (existing platform Redis store)                                                       |
+| Scope               | `sync.dailyUsage.push` (already set)                                                                    |
+| Required?           | **Yes for v1 production collect** (`@Idempotent({ required: true, scopeKey: 'sync.dailyUsage.push' })`) |
+| TTL                 | Keep platform default (24h) unless product wants longer                                                 |
+| Concurrent same key | `IDEMPOTENCY_IN_PROGRESS` / wait (platform behavior)                                                    |
 
 ### Why required
 
@@ -100,10 +100,10 @@ Desktop will retry on network/`5xx` with the **same key**. Optional key means a 
 
 ### Open decisions
 
-| # | Topic | Proposal |
-| --- | --- | --- |
-| D1 | Require Idempotency-Key | **Yes** |
-| D2 | Idempotency TTL | 24h default |
+| #   | Topic                   | Proposal    |
+| --- | ----------------------- | ----------- |
+| D1  | Require Idempotency-Key | **Yes**     |
+| D2  | Idempotency TTL         | 24h default |
 
 ---
 
@@ -111,18 +111,18 @@ Desktop will retry on network/`5xx` with the **same key**. Optional key means a 
 
 ### Proposal (publish + enforce)
 
-| Limit | Value | Enforcement |
-| --- | --- | --- |
-| Max facts per request | **1000** | Already `ArrayMaxSize(1000)` + service check |
-| Max models per fact | **100** | Already service check |
-| Max body size | **1 MiB** (or 2 MiB) | Fastify / Nest body limit if not global; map to problem |
+| Limit                 | Value                | Enforcement                                             |
+| --------------------- | -------------------- | ------------------------------------------------------- |
+| Max facts per request | **1000**             | Already `ArrayMaxSize(1000)` + service check            |
+| Max models per fact   | **100**              | Already service check                                   |
+| Max body size         | **1 MiB** (or 2 MiB) | Fastify / Nest body limit if not global; map to problem |
 
 ### Error codes
 
-| Condition | Code | HTTP |
-| --- | --- | --- |
+| Condition             | Code                                                                          | HTTP       |
+| --------------------- | ----------------------------------------------------------------------------- | ---------- |
 | Facts/models over max | Prefer **`SYNC_PAYLOAD_TOO_LARGE`** (already in enum) over generic validation | 413 or 400 |
-| Body over size | `SYNC_PAYLOAD_TOO_LARGE` | 413 |
+| Body over size        | `SYNC_PAYLOAD_TOO_LARGE`                                                      | 413        |
 
 **Proposal:** use **413** for size/limit exceeded where Fastify signals it; use **400 + `SYNC_PAYLOAD_TOO_LARGE`** if easier with validation pipeline. Pick one and document in OpenAPI.
 
@@ -135,10 +135,10 @@ Recommendation: **400 + `SYNC_PAYLOAD_TOO_LARGE`** for app-level fact/model limi
 
 ### Open decisions
 
-| # | Topic | Proposal |
-| --- | --- | --- |
-| D3 | Body size | **1 MiB** |
-| D4 | Limit error status | **400 + SYNC_PAYLOAD_TOO_LARGE** for fact/model limits |
+| #   | Topic              | Proposal                                               |
+| --- | ------------------ | ------------------------------------------------------ |
+| D3  | Body size          | **1 MiB**                                              |
+| D4  | Limit error status | **400 + SYNC_PAYLOAD_TOO_LARGE** for fact/model limits |
 
 ---
 
@@ -148,10 +148,10 @@ Recommendation: **400 + `SYNC_PAYLOAD_TOO_LARGE`** for app-level fact/model limi
 
 Lightweight Redis limiter, same style as auth resend / profile upload:
 
-| Dimension | Limit (proposal) |
-| --- | --- |
-| Per user | e.g. **60 pushes / 15 minutes** |
-| Per device (optional) | e.g. **30 / 15 minutes** |
+| Dimension             | Limit (proposal)                |
+| --------------------- | ------------------------------- |
+| Per user              | e.g. **60 pushes / 15 minutes** |
+| Per device (optional) | e.g. **30 / 15 minutes**        |
 
 On exceed: `429` + `RATE_LIMITED` + `Retry-After` when available.
 
@@ -163,10 +163,10 @@ Prevents runaway desktop loops / compromised tokens from flooding upserts.
 
 ### Open decisions
 
-| # | Topic | Proposal |
-| --- | --- | --- |
-| D5 | Rate limit | **60 / 15 min per user** on push only |
-| D6 | Per-device limit | Skip in v1 (user limit enough) |
+| #   | Topic            | Proposal                              |
+| --- | ---------------- | ------------------------------------- |
+| D5  | Rate limit       | **60 / 15 min per user** on push only |
+| D6  | Per-device limit | Skip in v1 (user limit enough)        |
 
 ---
 
@@ -208,10 +208,10 @@ Alternatively delete devices with cascade to facts if FK allows; **still** need 
 
 ### Ownership
 
-| Option | Choice |
-| --- | --- |
-| A. Inline deletes in `users-account-deletion.handlers.ts` | Simple, one place |
-| B. Call `usage-sync` port from worker | Cleaner layering but worker currently imports Prisma handlers |
+| Option                                                    | Choice                                                        |
+| --------------------------------------------------------- | ------------------------------------------------------------- |
+| A. Inline deletes in `users-account-deletion.handlers.ts` | Simple, one place                                             |
+| B. Call `usage-sync` port from worker                     | Cleaner layering but worker currently imports Prisma handlers |
 
 **Recommendation: A for v1** (mirror how credentials/sessions are deleted today), with a short comment linking ADR 0020. Optionally extract `wipeUsageSyncForUser(tx, userId)` helper in usage-sync **infra** or shared worker util to avoid bloating the handler—without introducing circular feature deps.
 
@@ -231,10 +231,10 @@ Alternatively delete devices with cascade to facts if FK allows; **still** need 
 
 ### Open decisions
 
-| # | Topic | Proposal |
-| --- | --- | --- |
-| D7 | Wipe location | Helper + call from finalize txn |
-| D8 | Soft vs hard delete of facts | **Hard delete** on account finalize (no residual) |
+| #   | Topic                        | Proposal                                          |
+| --- | ---------------------------- | ------------------------------------------------- |
+| D7  | Wipe location                | Helper + call from finalize txn                   |
+| D8  | Soft vs hard delete of facts | **Hard delete** on account finalize (no residual) |
 
 ---
 
@@ -295,35 +295,35 @@ Privacy wipe can ship independently of idempotency if needed for urgency.
 
 ## Risks
 
-| Risk | Mitigation |
-| --- | --- |
-| Required idempotency breaks old clients | No production clients yet; document in OpenAPI |
-| Wipe misses a table | Checklist + assert counts in test |
-| Finalize txn too long | Deletes are indexed by userId; still keep in one txn for atomicity |
-| Rate limit false positives for power users | Start lenient (60/15m); tune later |
-| Double batch audit on non-idempotent path | Required key + platform cache |
+| Risk                                       | Mitigation                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| Required idempotency breaks old clients    | No production clients yet; document in OpenAPI                     |
+| Wipe misses a table                        | Checklist + assert counts in test                                  |
+| Finalize txn too long                      | Deletes are indexed by userId; still keep in one txn for atomicity |
+| Rate limit false positives for power users | Start lenient (60/15m); tune later                                 |
+| Double batch audit on non-idempotent path  | Required key + platform cache                                      |
 
 ## Relation to Phase E / F
 
-| Phase | After D |
-| --- | --- |
-| **E** | Mostly already done; run full `npm run verify`, add any missing e2e |
+| Phase | After D                                                                    |
+| ----- | -------------------------------------------------------------------------- |
+| **E** | Mostly already done; run full `npm run verify`, add any missing e2e        |
 | **F** | Integration note for desktop: endpoints, required headers, limits, fixture |
 
 Web read APIs remain **out of collect hardening**.
 
 ## Open decisions summary (please confirm)
 
-| # | Decision | Proposal |
-| --- | --- | --- |
-| D1 | Idempotency-Key required on push | **Yes** |
-| D2 | Idempotency TTL | **24h** (platform default) |
-| D3 | Max body size | **1 MiB** |
-| D4 | Over-limit error | **`SYNC_PAYLOAD_TOO_LARGE`** (400) |
-| D5 | Rate limit | **60 / 15 min per user** on push |
-| D6 | Per-device rate limit | **No** (v1) |
-| D7 | Wipe implementation site | **Finalize txn + helper** |
-| D8 | Usage data on delete | **Hard delete** |
+| #   | Decision                         | Proposal                           |
+| --- | -------------------------------- | ---------------------------------- |
+| D1  | Idempotency-Key required on push | **Yes**                            |
+| D2  | Idempotency TTL                  | **24h** (platform default)         |
+| D3  | Max body size                    | **1 MiB**                          |
+| D4  | Over-limit error                 | **`SYNC_PAYLOAD_TOO_LARGE`** (400) |
+| D5  | Rate limit                       | **60 / 15 min per user** on push   |
+| D6  | Per-device rate limit            | **No** (v1)                        |
+| D7  | Wipe implementation site         | **Finalize txn + helper**          |
+| D8  | Usage data on delete             | **Hard delete**                    |
 
 ## Summary for reviewers
 
