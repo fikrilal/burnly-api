@@ -69,7 +69,7 @@ async function waitForPostgres(maxAttempts = 30, delayMs = 2000): Promise<void> 
       '-U',
       'postgres',
       '-d',
-      'burnly_api',
+      'burnly_db',
     ]);
 
     if (res.signal) {

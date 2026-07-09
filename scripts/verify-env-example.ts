@@ -28,7 +28,7 @@ const REQUIRED_DOCUMENTED_KEYS = [
 const PRODUCTION_INVARIANT_OVERRIDES: Readonly<Record<string, string>> = {
   NODE_ENV: 'production',
   HTTP_TRUST_PROXY: 'true',
-  DATABASE_URL: 'postgresql://postgres@example.com:5432/burnly_api?schema=public',
+  DATABASE_URL: 'postgresql://postgres@example.com:5432/burnly_db?schema=public',
   REDIS_URL: 'redis://example.com:6379/0',
   AUTH_ISSUER: 'https://api.burnly.dev',
   AUTH_AUDIENCE: 'api.burnly.dev',

@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_DB: burnly_api
+      POSTGRES_DB: burnly_db
       # Local-only convenience: do not require a password.
       # Never run this configuration in production.
       POSTGRES_HOST_AUTH_METHOD: trust
@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres -d burnly_api']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d burnly_db']
       interval: 5s
       timeout: 3s
       retries: 20

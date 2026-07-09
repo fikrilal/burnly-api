@@ -40,7 +40,7 @@ jobs:
 
       - name: Prisma schema and generation drift
         env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/awwabi_backend?schema=public
+          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/burnly_db?schema=public
         run: npm run verify:prisma
 
       - name: Format check
@@ -90,7 +90,7 @@ jobs:
       - name: Wait for Postgres (docker compose)
         run: |
           for i in {1..30}; do
-            if docker compose exec -T postgres pg_isready -U postgres -d awwabi_backend > /dev/null 2>&1; then
+            if docker compose exec -T postgres pg_isready -U postgres -d burnly_db > /dev/null 2>&1; then
               echo "Postgres is ready"
               exit 0
             fi
@@ -131,23 +131,23 @@ jobs:
 
       - name: Apply Prisma migrations
         env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/awwabi_backend?schema=public
+          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/burnly_db?schema=public
         run: npm run prisma:migrate:deploy
 
       - name: Prisma migration status
         env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/awwabi_backend?schema=public
+          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/burnly_db?schema=public
         run: npm run prisma:migrate:status
 
       - name: Integration tests
         env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/awwabi_backend?schema=public
+          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/burnly_db?schema=public
           REDIS_URL: redis://127.0.0.1:63790/0
         run: npm run test:int
 
       - name: E2E tests
         env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/awwabi_backend?schema=public
+          DATABASE_URL: postgresql://postgres@127.0.0.1:54321/burnly_db?schema=public
           REDIS_URL: redis://127.0.0.1:63790/0
         run: npm run test:e2e
 
