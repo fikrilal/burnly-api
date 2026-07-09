@@ -1,0 +1,108 @@
+# Observability Standard (Logs, Traces, Metrics)
+
+This document defines the baseline observability requirements for services built from burnly-api.
+
+## Structured Logging (JSON)
+
+Rules:
+
+- Logs are structured JSON by default.
+- Every log line includes correlation identifiers when available:
+  - `requestId` / `traceId`
+  - `userId` (when authenticated)
+  - `jobId` (in worker context)
+- Do not log secrets.
+- PII must be minimized and redacted where possible.
+
+Implementation (current):
+
+- Logging is wired via `libs/platform/logging/logging.module.ts` (nestjs-pino + pino).
+- `NODE_ENV=development` uses pretty logs by default (pino-pretty); staging/production are JSON.
+- `/health` and `/ready` are excluded from automatic HTTP request logging to reduce noise.
+
+### PII Redaction
+
+Baseline guidance:
+
+- Never log raw tokens, passwords, API keys, refresh tokens.
+- Avoid logging full emails/phone numbers; if needed, mask.
+- Prefer logging identifiers (userId) rather than raw user attributes.
+
+## Request Correlation
+
+Rules:
+
+- Accept `x-request-id` from clients.
+- Generate if missing.
+- Echo on response header `X-Request-Id`.
+- Include in all logs and problem-details errors as `traceId`.
+
+Usage in code (preferred):
+
+- Inject `PinoLogger` (from `nestjs-pino`) and set context once per class.
+- Log structured objects (ids, counts, durations) instead of concatenated strings.
+
+## Tracing (OpenTelemetry)
+
+Baseline requirements:
+
+- Instrument inbound HTTP requests.
+- Instrument outbound calls where practical (HTTP clients, DB, Redis, queue).
+- Export traces via OTLP to Grafana Cloud.
+
+Recommended resource attributes:
+
+- `service.name` (OTEL service name)
+- `deployment.environment` (development/staging/production)
+- `service.version` (release/version)
+
+Implementation (current):
+
+- Traces are initialized early in `apps/api/src/main.ts` and `apps/worker/src/main.ts` via `libs/platform/otel/telemetry.ts`.
+- Export: OTLP HTTP traces (`OTEL_EXPORTER_OTLP_ENDPOINT` + `OTEL_EXPORTER_OTLP_HEADERS`).
+- Noise/safety:
+  - `/health` and `/ready` are excluded from tracing.
+  - Querystrings are stripped from URL span attributes; requestId is attached as `app.request_id` for correlation.
+
+### Async propagation (BullMQ jobs)
+
+Rules:
+
+- All job producers must use `libs/platform/queue/queue.producer.ts` (`QueueProducer`).
+- All job workers must use `libs/platform/queue/queue.worker.ts` (`QueueWorkerFactory`).
+- The platform propagates W3C trace context (`traceparent` + optional `tracestate`) across the
+  queue boundary by storing it in `job.data.__meta.otel`.
+
+Notes:
+
+- Job processing runs under an extracted parent context and emits a consumer span (`queue.process`)
+  so worker spans are part of the originating request trace when enqueued from HTTP.
+- Worker logs include `otelTraceId`/`otelSpanId` when emitted inside an active span context.
+
+## Metrics
+
+Baseline metrics (minimum):
+
+- HTTP request duration + status code counts
+- DB query durations (if supported)
+- BullMQ job duration + success/failure counts
+
+Export metrics via OTLP where supported in Grafana Cloud Free; otherwise export to Prometheus-compatible endpoints and scrape.
+
+## Health Endpoints
+
+Two endpoints:
+
+- `/health` (liveness): returns OK if process is alive
+- `/ready` (readiness): returns OK only if dependencies are ready (DB, Redis)
+
+Health endpoints may be exceptions to the response envelope (documented).
+
+## Dashboards & Alerts
+
+Baseline expectation:
+
+- Provide a minimal dashboard set (API latency, error rate, worker failures).
+- Provide a minimal alert set (5xx rate, DB unavailable, Redis unavailable, job failure spikes).
+
+Templates should live under docs when added (e.g., `docs/observability/dashboards/`).

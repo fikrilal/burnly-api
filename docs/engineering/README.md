@@ -1,0 +1,33 @@
+# Engineering Notes
+
+This folder contains implementation-aware engineering notes intended to help adopters and client teams (mobile/web) integrate correctly with this Burnly API.
+
+These documents are not “standards”. Standards live under `docs/standards/`.
+
+## Index
+
+- Auth
+  - `docs/engineering/auth/README.md`
+  - `docs/engineering/auth/token-refresh-and-request-retry.md`
+  - `docs/engineering/auth/oidc-google.md`
+  - `docs/engineering/auth/auth-abuse-protection.md`
+  - `docs/engineering/auth/password-change.md`
+  - `docs/engineering/auth/email-verification.md`
+  - `docs/engineering/auth/password-reset.md`
+  - `docs/engineering/auth/session-management.md`
+- Users
+  - `docs/engineering/users/README.md`
+  - `docs/engineering/users/account-deletion.md`
+  - `docs/engineering/users/profile-images.md`
+- Email
+  - `docs/engineering/email/README.md`
+  - `docs/engineering/email/resend.md`
+- Push
+  - `docs/engineering/push/README.md`
+  - `docs/engineering/push/fcm.md`
+- Agent workflow and harness
+  - `docs/engineering/agent-pr-loop.md`
+  - `docs/engineering/backend-runtime-evidence.md`
+  - `docs/engineering/guardrails.md`
+  - `docs/engineering/parallel-agent-workflow.md`
+  - `docs/engineering/duplication-harness.md`
