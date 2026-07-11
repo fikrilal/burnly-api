@@ -3,6 +3,7 @@ import { PrismaService } from '../libs/platform/db/prisma.service';
 import { PrismaDailyUsageFactsRepository } from '../libs/features/usage-sync/infra/persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from '../libs/features/usage-sync/infra/persistence/prisma-sync-batches.repository';
 import { PrismaSyncDevicesRepository } from '../libs/features/usage-sync/infra/persistence/prisma-sync-devices.repository';
+import { PrismaUsageReadRepository } from '../libs/features/usage-sync/infra/persistence/prisma-usage-read.repository';
 import { UNKNOWN_MODEL_IDENTITY_KEY } from '../libs/features/usage-sync/app/model-identity';
 import { createConfigService } from './support/stubs';
 
@@ -26,6 +27,7 @@ describeIfDb('usage-sync persistence (int)', () => {
   let devices: PrismaSyncDevicesRepository;
   let facts: PrismaDailyUsageFactsRepository;
   let batches: PrismaSyncBatchesRepository;
+  let reads: PrismaUsageReadRepository;
   let userId: string;
 
   beforeAll(() => {
@@ -33,6 +35,7 @@ describeIfDb('usage-sync persistence (int)', () => {
     devices = new PrismaSyncDevicesRepository(prisma);
     facts = new PrismaDailyUsageFactsRepository(prisma);
     batches = new PrismaSyncBatchesRepository(prisma);
+    reads = new PrismaUsageReadRepository(prisma);
   });
 
   afterAll(async () => {
@@ -236,5 +239,188 @@ describeIfDb('usage-sync persistence (int)', () => {
     expect(await client.syncDevice.count({ where: { userId } })).toBe(0);
     expect(await client.dailyUsageFact.count({ where: { userId } })).toBe(0);
     expect(await client.syncBatch.count({ where: { userId } })).toBe(0);
+  });
+
+  it('lists devices with lastSyncAt DESC NULLS LAST', async () => {
+    const older = await devices.upsertByClientDeviceId({
+      userId,
+      clientDeviceId: 'dev-older-sync',
+      platform: 'linux',
+      appVersion: '0.1.20',
+      reportingTimezone: 'UTC',
+    });
+    const never = await devices.upsertByClientDeviceId({
+      userId,
+      clientDeviceId: 'dev-never-sync',
+      platform: 'macos',
+      appVersion: '0.1.20',
+      reportingTimezone: 'UTC',
+    });
+    const newer = await devices.upsertByClientDeviceId({
+      userId,
+      clientDeviceId: 'dev-newer-sync',
+      platform: 'windows',
+      appVersion: '0.1.20',
+      reportingTimezone: 'UTC',
+    });
+
+    await devices.markSyncSuccess({
+      deviceId: older.id,
+      syncedAt: new Date('2026-07-01T00:00:00.000Z'),
+      clientRevision: 1n,
+    });
+    await devices.markSyncSuccess({
+      deviceId: newer.id,
+      syncedAt: new Date('2026-07-10T00:00:00.000Z'),
+      clientRevision: 2n,
+    });
+
+    const listed = await devices.listByUser(userId);
+    expect(listed.map((d) => d.clientDeviceId)).toEqual([
+      'dev-newer-sync',
+      'dev-older-sync',
+      'dev-never-sync',
+    ]);
+    expect(listed[2]?.id).toBe(never.id);
+  });
+
+  it('read repository sums active parents, excludes removed, and groups by date', async () => {
+    const deviceA = await devices.upsertByClientDeviceId({
+      userId,
+      clientDeviceId: 'dev-read-a',
+      platform: 'linux',
+      appVersion: '0.1.20',
+      reportingTimezone: 'UTC',
+    });
+    const deviceB = await devices.upsertByClientDeviceId({
+      userId,
+      clientDeviceId: 'dev-read-b',
+      platform: 'macos',
+      appVersion: '0.1.20',
+      reportingTimezone: 'UTC',
+    });
+
+    const day1 = new Date('2026-07-08T00:00:00.000Z');
+    const day2 = new Date('2026-07-09T00:00:00.000Z');
+    const syncedAt = new Date('2026-07-10T12:00:00.000Z');
+
+    const baseFact = {
+      userId,
+      identityVersion: 1,
+      aggregationTimezone: 'UTC',
+      costStatus: 'unavailable' as const,
+      costKind: 'unknown' as const,
+      dataQuality: 'complete' as const,
+      clientFirstSeenAt: new Date('2026-07-08T10:00:00.000Z'),
+      clientLastSeenAt: new Date('2026-07-08T12:00:00.000Z'),
+      clientRevision: 1n,
+      syncedAt,
+    };
+
+    await facts.upsertFactWithModels({
+      ...baseFact,
+      deviceId: deviceA.id,
+      sourceKey: 'claude-code',
+      identityKey: 'claude-code:daily:v1:UTC:2026-07-08',
+      usageDate: day1,
+      totalTokens: 100n,
+      inputTokens: 60n,
+      outputTokens: 40n,
+      recordState: 'active',
+      models: [
+        {
+          rawModelId: 'claude-sonnet-4',
+          totalTokens: 90n,
+          costStatus: 'unavailable',
+        },
+      ],
+    });
+
+    await facts.upsertFactWithModels({
+      ...baseFact,
+      deviceId: deviceB.id,
+      sourceKey: 'claude-code',
+      identityKey: 'claude-code:daily:v1:UTC:2026-07-08',
+      usageDate: day1,
+      totalTokens: 50n,
+      inputTokens: 30n,
+      outputTokens: 20n,
+      recordState: 'active',
+      models: [
+        {
+          rawModelId: 'claude-sonnet-4',
+          totalTokens: 50n,
+          costStatus: 'unavailable',
+        },
+      ],
+    });
+
+    await facts.upsertFactWithModels({
+      ...baseFact,
+      deviceId: deviceA.id,
+      sourceKey: 'codex',
+      identityKey: 'codex:daily:v1:UTC:2026-07-09',
+      usageDate: day2,
+      totalTokens: 25n,
+      recordState: 'active',
+      models: [],
+    });
+
+    await facts.upsertFactWithModels({
+      ...baseFact,
+      deviceId: deviceA.id,
+      sourceKey: 'opencode',
+      identityKey: 'opencode:daily:v1:UTC:2026-07-08',
+      usageDate: day1,
+      totalTokens: 999n,
+      recordState: 'removed',
+      models: [],
+    });
+
+    const scope = { userId, aggregationTimezone: 'UTC' };
+
+    const totals = await reads.sumParentTotals(scope, day1, day2);
+    expect(totals.factCount).toBe(3);
+    expect(totals.totalTokens).toBe(175n);
+    expect(totals.inputTokens).toBe(90n);
+
+    const byDate = await reads.groupParentTotalsByDate(scope, day1, day2);
+    expect(byDate).toEqual([
+      { usageDate: '2026-07-08', totalTokens: 150n, factCount: 2 },
+      { usageDate: '2026-07-09', totalTokens: 25n, factCount: 1 },
+    ]);
+
+    const dayParents = await reads.listActiveParentsForDay(scope, day1);
+    expect(dayParents).toHaveLength(2);
+    expect(dayParents.map((p) => p.totalTokens).sort((a, b) => (a < b ? -1 : 1))).toEqual([
+      50n,
+      100n,
+    ]);
+
+    const models = await reads.listModelsForFactIds(
+      userId,
+      dayParents.map((p) => p.id),
+    );
+    expect(models).toHaveLength(2);
+
+    const aggregated = await reads.aggregateModelsByIdentity(scope, day1, day2);
+    expect(aggregated[0]?.modelIdentityKey).toBe('claude-sonnet-4');
+    expect(aggregated[0]?.totalTokens).toBe(140n);
+
+    const filtered = await reads.sumParentTotals(
+      { ...scope, deviceId: deviceA.id },
+      day1,
+      day2,
+    );
+    expect(filtered.totalTokens).toBe(125n);
+    expect(filtered.factCount).toBe(2);
+
+    await devices.markSyncSuccess({
+      deviceId: deviceA.id,
+      syncedAt: new Date('2026-07-11T00:00:00.000Z'),
+      clientRevision: 3n,
+    });
+    const maxSync = await reads.maxDeviceLastSyncAt(userId);
+    expect(maxSync?.toISOString()).toBe('2026-07-11T00:00:00.000Z');
   });
 });

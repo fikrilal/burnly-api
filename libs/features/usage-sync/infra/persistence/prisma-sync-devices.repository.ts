@@ -70,6 +70,15 @@ export class PrismaSyncDevicesRepository implements SyncDevicesRepository {
     return row ? toRecord(row) : null;
   }
 
+  async listByUser(userId: string): Promise<readonly SyncDeviceRecord[]> {
+    const client = this.prisma.getClient();
+    const rows = await client.syncDevice.findMany({
+      where: { userId },
+      orderBy: [{ lastSyncAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    });
+    return rows.map(toRecord);
+  }
+
   async markSyncSuccess(input: {
     deviceId: string;
     syncedAt: Date;

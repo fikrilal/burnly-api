@@ -53,6 +53,24 @@ export function usageDateToUtcDate(usageDate: string): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+/** Format a UTC-midnight Date back to YYYY-MM-DD (usage date string). */
+export function utcDateToUsageDateString(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Add calendar days to a usage date string (UTC date arithmetic).
+ * delta may be negative.
+ */
+export function addUsageDateDays(usageDate: string, deltaDays: number): string {
+  const base = usageDateToUtcDate(usageDate);
+  const next = new Date(base.getTime() + deltaDays * 86_400_000);
+  return utcDateToUsageDateString(next);
+}
+
 /** Parse RFC 3339 / ISO-8601 timestamp to Date, or null if invalid. */
 export function parseRfc3339ToDate(value: string): Date | null {
   const ms = Date.parse(value);

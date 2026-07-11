@@ -13,10 +13,11 @@ import { SyncDevicesController } from './http/sync-devices.controller';
 import { PrismaDailyUsageFactsRepository } from './persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from './persistence/prisma-sync-batches.repository';
 import { PrismaSyncDevicesRepository } from './persistence/prisma-sync-devices.repository';
+import { PrismaUsageReadRepository } from './persistence/prisma-usage-read.repository';
 import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-push-rate-limiter';
 
 /**
- * Usage-sync collect feature: device register/get + daily usage push.
+ * Usage-sync feature: collect write path + Phase 2 read foundation (no usage GET routes yet).
  */
 @Module({
   imports: [PrismaModule, PlatformAuthModule, RedisModule],
@@ -25,6 +26,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     PrismaSyncDevicesRepository,
     PrismaDailyUsageFactsRepository,
     PrismaSyncBatchesRepository,
+    PrismaUsageReadRepository,
     RedisDailyUsagePushRateLimiter,
     provideConstructedAppService({
       provide: SyncDevicesService,
@@ -41,6 +43,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     PrismaSyncDevicesRepository,
     PrismaDailyUsageFactsRepository,
     PrismaSyncBatchesRepository,
+    PrismaUsageReadRepository,
     SyncDevicesService,
     PushDailyUsageService,
   ],

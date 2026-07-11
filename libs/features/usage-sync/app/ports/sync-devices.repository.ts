@@ -8,6 +8,12 @@ export interface SyncDevicesRepository {
     clientDeviceId: string,
   ): Promise<SyncDeviceRecord | null>;
 
+  /**
+   * All devices for a user.
+   * Order: lastSyncAt DESC NULLS LAST, then createdAt DESC.
+   */
+  listByUser(userId: string): Promise<readonly SyncDeviceRecord[]>;
+
   markSyncSuccess(input: {
     deviceId: string;
     syncedAt: Date;

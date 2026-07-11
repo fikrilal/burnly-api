@@ -26,6 +26,7 @@ describe('SyncDevicesService', () => {
     const repo: SyncDevicesRepository = {
       upsertByClientDeviceId: jest.fn(async () => deviceRecord()),
       findByUserAndClientDeviceId: jest.fn(),
+      listByUser: jest.fn(),
       markSyncSuccess: jest.fn(),
     };
 
@@ -63,6 +64,7 @@ describe('SyncDevicesService', () => {
     const repo: SyncDevicesRepository = {
       upsertByClientDeviceId: jest.fn(),
       findByUserAndClientDeviceId: jest.fn(async () => null),
+      listByUser: jest.fn(),
       markSyncSuccess: jest.fn(),
     };
 

@@ -3,7 +3,12 @@
  * @see docs/adr/0021-usage-sync-identity-and-devices.md
  */
 
-export { isUsageDateString, usageDateToUtcDate } from '../domain/calendar-date';
+export {
+  isUsageDateString,
+  usageDateToUtcDate,
+  utcDateToUsageDateString,
+  addUsageDateDays,
+} from '../domain/calendar-date';
 
 export function buildDailyIdentityKey(params: {
   sourceKey: string;
