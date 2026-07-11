@@ -8,6 +8,7 @@ import {
 import { RedisModule } from '../../../platform/redis/redis.module';
 import { GetUsageCalendarService } from '../app/get-usage-calendar.service';
 import { GetUsageDayService } from '../app/get-usage-day.service';
+import { GetUsageModelsService } from '../app/get-usage-models.service';
 import { GetUsageSummaryService } from '../app/get-usage-summary.service';
 import { PushDailyUsageService } from '../app/push-daily-usage.service';
 import { SyncDevicesService } from '../app/sync-devices.service';
@@ -15,6 +16,7 @@ import { DailyUsageController } from './http/daily-usage.controller';
 import { SyncDevicesController } from './http/sync-devices.controller';
 import { UsageCalendarController } from './http/usage-calendar.controller';
 import { UsageDayController } from './http/usage-day.controller';
+import { UsageModelsController } from './http/usage-models.controller';
 import { UsageSummaryController } from './http/usage-summary.controller';
 import { PrismaDailyUsageFactsRepository } from './persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from './persistence/prisma-sync-batches.repository';
@@ -33,6 +35,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     UsageSummaryController,
     UsageCalendarController,
     UsageDayController,
+    UsageModelsController,
   ],
   providers: [
     PrismaSyncDevicesRepository,
@@ -65,6 +68,11 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
       inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
       useClass: GetUsageDayService,
     }),
+    provideConstructedAppService({
+      provide: GetUsageModelsService,
+      inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
+      useClass: GetUsageModelsService,
+    }),
   ],
   exports: [
     PrismaSyncDevicesRepository,
@@ -76,6 +84,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     GetUsageSummaryService,
     GetUsageCalendarService,
     GetUsageDayService,
+    GetUsageModelsService,
   ],
 })
 export class UsageSyncModule {}

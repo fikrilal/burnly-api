@@ -1007,6 +1007,68 @@ paths:
         - FORBIDDEN
         - SYNC_DEVICE_NOT_FOUND
         - INTERNAL
+  /v1/usage/models:
+    get:
+      description: Aggregates daily model children by modelIdentityKey for the
+        inclusive from/to range. parentTotals.totalTokens is the authoritative
+        chart baseline; attribution.unattributedTokens covers remainder when
+        children under-sum. Optional deviceId and sourceKey filters. Max range
+        366 days. Does not use model sums as period totals.
+      operationId: usage.models.list
+      parameters:
+        - name: from
+          required: true
+          in: query
+          description: Inclusive range start (YYYY-MM-DD). Max 366 days with to.
+          schema:
+            example: 2026-07-01
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: Inclusive range end (YYYY-MM-DD). Must be >= from.
+          schema:
+            example: 2026-07-09
+            type: string
+        - name: timezone
+          required: true
+          in: query
+          description: IANA timezone; filters parent aggregationTimezone (exact match).
+          schema:
+            example: Asia/Jakarta
+            type: string
+        - name: deviceId
+          required: false
+          in: query
+          description: Optional desktop clientDeviceId filter (not server UUID).
+          schema:
+            example: dev_abc123
+            type: string
+        - name: sourceKey
+          required: false
+          in: query
+          description: Optional product sourceKey filter.
+          schema:
+            example: claude-code
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageModelsEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Model breakdown over a date range
+      tags:
+        - Usage
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -2323,5 +2385,135 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/UsageDayDataDto"
+      required:
+        - data
+    UsageModelsParentTotalsDto:
+      type: object
+      properties:
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 100000
+          description: Sum of active parent totalTokens (chart 100% baseline).
+        factCount:
+          type: number
+          example: 40
+      required:
+        - totalTokens
+        - factCount
+    UsageModelsModelDto:
+      type: object
+      properties:
+        modelIdentityKey:
+          type: string
+          example: claude-sonnet-4
+          description: Stable group key; unknown bucket uses __unknown__ sentinel.
+        rawModelId:
+          type: string
+          nullable: true
+          example: claude-sonnet-4
+        displayName:
+          type: string
+          nullable: true
+        providerKey:
+          type: string
+          nullable: true
+          example: anthropic
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 80000
+        inputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 50000
+        outputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 30000
+        cacheCreationTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+        cacheReadTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+      required:
+        - modelIdentityKey
+        - totalTokens
+    UsageModelsAttributionDto:
+      type: object
+      properties:
+        modelsSumTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 85000
+          description: Sum of model totalTokens (null model totals treated as 0).
+        parentTotalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 100000
+          description: Same as parentTotals.totalTokens — authoritative chart baseline.
+        unattributedTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 15000
+          description: max(0, parentTotalTokens - modelsSumTokens).
+      required:
+        - modelsSumTokens
+        - parentTotalTokens
+        - unattributedTokens
+    UsageModelsDataDto:
+      type: object
+      properties:
+        timezone:
+          type: string
+          example: Asia/Jakarta
+        from:
+          type: string
+          example: 2026-07-01
+        to:
+          type: string
+          example: 2026-07-09
+        deviceFilter:
+          type: string
+          nullable: true
+          example: null
+        sourceFilter:
+          type: string
+          nullable: true
+          example: null
+        parentTotals:
+          $ref: "#/components/schemas/UsageModelsParentTotalsDto"
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageModelsModelDto"
+        attribution:
+          $ref: "#/components/schemas/UsageModelsAttributionDto"
+      required:
+        - timezone
+        - from
+        - to
+        - parentTotals
+        - models
+        - attribution
+    UsageModelsEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UsageModelsDataDto"
       required:
         - data
