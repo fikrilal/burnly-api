@@ -61,26 +61,42 @@ describe('validateIdentityKey', () => {
 });
 
 describe('validateWindow', () => {
-  it('requires rolling and ordered dates', () => {
-    const issues: { field: string; message: string }[] = [];
+  it('accepts full, incremental, and deprecated rolling with ordered dates', () => {
+    for (const scope of ['full', 'incremental', 'rolling'] as const) {
+      const issues: { field: string; message: string }[] = [];
+      expect(
+        validateWindow({
+          startDate: '2026-07-01',
+          endDate: '2026-07-08',
+          scope,
+          issues,
+        }),
+      ).toBe(true);
+      expect(issues).toHaveLength(0);
+    }
+  });
+
+  it('rejects unknown scope and unordered dates', () => {
+    const badScope: { field: string; message: string }[] = [];
     expect(
       validateWindow({
         startDate: '2026-07-01',
         endDate: '2026-07-08',
-        scope: 'rolling',
-        issues,
+        scope: 'unknown',
+        issues: badScope,
       }),
-    ).toBe(true);
+    ).toBe(false);
+    expect(badScope.some((i) => i.field === 'window.scope')).toBe(true);
 
-    const bad: { field: string; message: string }[] = [];
+    const badDates: { field: string; message: string }[] = [];
     expect(
       validateWindow({
         startDate: '2026-07-10',
         endDate: '2026-07-01',
         scope: 'full',
-        issues: bad,
+        issues: badDates,
       }),
     ).toBe(false);
-    expect(bad.length).toBeGreaterThan(0);
+    expect(badDates.length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,5 @@
 import type {
+  SyncBatchScope,
   UpsertDailyUsageFactInput,
   UpsertDailyUsageFactResult,
   UsageRecordState,
@@ -20,6 +21,7 @@ export type CommitDailyUsagePushInput = Readonly<{
     appVersion: string;
     windowStartDate: Date;
     windowEndDate: Date;
+    windowScope: SyncBatchScope;
     traceId?: string | null;
   }>;
 }>;

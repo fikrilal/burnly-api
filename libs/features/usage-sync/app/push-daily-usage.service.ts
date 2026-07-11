@@ -22,9 +22,11 @@ import { UsageSyncError } from './usage-sync.errors';
 import { MAX_FACTS_PER_BATCH, MAX_MODELS_PER_FACT } from './usage-sync.limits';
 import type {
   DailyModelUsageWrite,
+  SyncBatchScope,
   UpsertDailyUsageFactInput,
   UsageRecordState,
 } from './usage-sync.types';
+import { isSyncBatchScope } from './usage-sync.types';
 
 export const SUPPORTED_SYNC_CONTRACT_VERSION = 1;
 export { MAX_FACTS_PER_BATCH, MAX_MODELS_PER_FACT } from './usage-sync.limits';
@@ -53,7 +55,7 @@ export type PushDailyUsageResult = Readonly<{
   window: Readonly<{
     startDate: string;
     endDate: string;
-    scope: 'rolling';
+    scope: SyncBatchScope;
   }>;
   counts: Readonly<{
     received: number;
@@ -392,6 +394,21 @@ export class PushDailyUsageService {
       });
     }
 
+    if (!isSyncBatchScope(command.window.scope)) {
+      throw new UsageSyncError({
+        status: 400,
+        code: ErrorCode.VALIDATION_FAILED,
+        message: 'Validation failed',
+        issues: [
+          {
+            field: 'window.scope',
+            message: 'must be "full", "incremental", or deprecated "rolling"',
+          },
+        ],
+      });
+    }
+    const windowScope: SyncBatchScope = command.window.scope;
+
     const device = await this.devices.findByUserAndClientDeviceId(command.userId, clientDeviceId);
     if (!device) {
       throw new UsageSyncError({
@@ -480,6 +497,7 @@ export class PushDailyUsageService {
         appVersion: command.appVersion.trim(),
         windowStartDate: usageDateToUtcDate(command.window.startDate),
         windowEndDate: usageDateToUtcDate(command.window.endDate),
+        windowScope,
         traceId: command.traceId ?? null,
       },
     });
@@ -491,7 +509,7 @@ export class PushDailyUsageService {
       window: {
         startDate: command.window.startDate,
         endDate: command.window.endDate,
-        scope: 'rolling',
+        scope: windowScope,
       },
       counts: commit.counts,
     };

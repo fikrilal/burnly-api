@@ -20,6 +20,10 @@ Missing `Idempotency-Key` → `400` `VALIDATION_FAILED` with field `Idempotency-
 
 Constants: `libs/features/usage-sync/app/usage-sync.limits.ts`.
 
+A `window.scope` of `full` (first baseline) may therefore be **split** into several
+requests. The server does **not** treat a `full` request as “delete everything not
+present.” Removals require `recordState: "removed"`.
+
 ## Rate limit
 
 | Dimension | Limit                                                 |

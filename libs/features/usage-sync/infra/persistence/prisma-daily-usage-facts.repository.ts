@@ -226,7 +226,7 @@ export class PrismaDailyUsageFactsRepository implements DailyUsageFactsRepositor
           appVersion: input.batch.appVersion,
           windowStartDate: input.batch.windowStartDate,
           windowEndDate: input.batch.windowEndDate,
-          windowScope: 'rolling',
+          windowScope: input.batch.windowScope,
           status: 'accepted',
           recordsReceived: counts.received,
           recordsUpserted: counts.upserted,

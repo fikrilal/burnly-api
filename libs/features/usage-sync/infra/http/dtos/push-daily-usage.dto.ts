@@ -28,9 +28,18 @@ export class SyncUsageWindowDto {
   @Matches(DATE_RE)
   endDate!: string;
 
-  @ApiProperty({ enum: ['rolling'], example: 'rolling' })
-  @IsIn(['rolling'])
-  scope!: 'rolling';
+  @ApiProperty({
+    enum: ['full', 'incremental', 'rolling'],
+    example: 'incremental',
+    description:
+      'full = first baseline / full-history export generation (may be split across requests). ' +
+      'incremental = later uploads for a refresh range / successful sources. ' +
+      'rolling = deprecated; accepted for compatibility — prefer full or incremental. ' +
+      'Neither full nor incremental implies server-side deletion of absent facts; ' +
+      'removals require explicit recordState "removed".',
+  })
+  @IsIn(['full', 'incremental', 'rolling'])
+  scope!: 'full' | 'incremental' | 'rolling';
 }
 
 /**

@@ -13,7 +13,22 @@ export type UsageCostKind =
 
 export type UsageDataQuality = 'complete' | 'partial';
 
-export type SyncBatchScope = 'rolling';
+/**
+ * Upload window scope (product upload-policy).
+ * - full: first baseline / full history export generation (may be split across requests)
+ * - incremental: later uploads for a refresh date range / successful sources
+ * - rolling: deprecated alias; accepted for compatibility, prefer full/incremental
+ */
+export type SyncBatchScope = 'full' | 'incremental' | 'rolling';
+
+export const SYNC_BATCH_SCOPE_VALUES = ['full', 'incremental', 'rolling'] as const;
+
+export function isSyncBatchScope(value: unknown): value is SyncBatchScope {
+  return (
+    typeof value === 'string' &&
+    (value === 'full' || value === 'incremental' || value === 'rolling')
+  );
+}
 
 export type SyncBatchStatus = 'accepted' | 'rejected';
 

@@ -286,6 +286,9 @@ enum UsageDataQuality {
 }
 
 enum SyncBatchScope {
+  full
+  incremental
+  /// Deprecated: prefer full or incremental (upload-policy). Still accepted for compatibility.
   rolling
 }
 

@@ -1557,8 +1557,16 @@ components:
         scope:
           type: string
           enum:
+            - full
+            - incremental
             - rolling
-          example: rolling
+          example: incremental
+          description: full = first baseline / full-history export generation (may be
+            split across requests). incremental = later uploads for a refresh
+            range / successful sources. rolling = deprecated; accepted for
+            compatibility — prefer full or incremental. Neither full nor
+            incremental implies server-side deletion of absent facts; removals
+            require explicit recordState "removed".
       required:
         - startDate
         - endDate

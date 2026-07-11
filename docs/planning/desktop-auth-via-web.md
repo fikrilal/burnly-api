@@ -3,7 +3,8 @@
 ## Status
 
 Design accepted. **burnly-api handoff endpoints implemented** (ADR 0022).  
-Web + desktop integration still pending.
+**burnly-web** handoff path implemented (params + post-login redirect).  
+**Desktop** integration: see burnly `docs/planning/desktop-auth-via-web-handoff.md`.
 
 Date: 2026-07-10  
 Audience: burnly-api, burnly-web, burnly desktop  

@@ -300,8 +300,11 @@ export function validateWindow(params: {
     params.issues.push({ field: 'window.endDate', message: 'must be YYYY-MM-DD' });
     ok = false;
   }
-  if (params.scope !== 'rolling') {
-    params.issues.push({ field: 'window.scope', message: 'must be "rolling" in v1' });
+  if (params.scope !== 'full' && params.scope !== 'incremental' && params.scope !== 'rolling') {
+    params.issues.push({
+      field: 'window.scope',
+      message: 'must be "full", "incremental", or deprecated "rolling"',
+    });
     ok = false;
   }
   if (ok && params.startDate > params.endDate) {

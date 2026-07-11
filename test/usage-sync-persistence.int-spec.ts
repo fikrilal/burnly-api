@@ -226,7 +226,7 @@ describeIfDb('usage-sync persistence (int)', () => {
       status: 'accepted',
       recordsReceived: 1,
       recordsUpserted: 1,
-      windowScope: 'rolling',
+      windowScope: 'incremental',
     });
     expect(batch.status).toBe('accepted');
 

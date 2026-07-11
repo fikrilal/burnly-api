@@ -88,27 +88,34 @@ implementation chooses hard reject; soft “ignore older” is also acceptable i
 documented in OpenAPI. Prefer **ignore older / no-op success** for simpler
 clients unless product requires an error.
 
-### 4) Rolling window and tombstones
+### 4) Upload window scope and tombstones
 
-Collect v1 batches declare:
+Collect batches declare:
 
 ```json
-"window": { "scope": "rolling", "startDate": "…", "endDate": "…" }
+"window": { "scope": "full" | "incremental", "startDate": "…", "endDate": "…" }
 ```
+
+Product policy (see Burnly desktop `docs/product/upload-policy.md`):
+
+- **`full`**: first successful upload generation for an account+install (all local
+  daily history). May be **split** across multiple HTTP requests (1,000-fact
+  limit). `full` labels the generation; it does **not** mean one request is complete.
+- **`incremental`**: later uploads following local refresh date range / successful
+  sources (partial refreshes omit failed sources).
+- **`rolling`**: **deprecated**; still accepted for compatibility.
 
 Rules:
 
-- Rolling push **must not** delete server history outside the window.
-- Desktop should include active/missing facts in-window and recent `removed`
-  facts so the server can soft-delete.
-- `recordState = removed` marks the cloud fact removed (soft); it does not hard-
-  delete by default (hard delete may occur on account deletion).
-- `scope: "full"` server-side wipe of missing identities is **out of v1**; do not
-  implement full-window tombstone sweeps until product asks.
+- **Neither `full` nor `incremental` may delete facts that are merely absent** from
+  the request (split full chunks and partial refreshes intentionally omit facts).
+- Desktop includes explicit `recordState: "removed"` facts when soft-deleting.
+- `recordState = removed` marks the cloud fact removed (soft); hard delete is for
+  account deletion wipe.
+- Server-side wipe of missing identities (tombstone sweeps) is **not** implemented.
 
-Recommended client window length: **90 days** (client policy). Server keeps
-history until a retention ADR exists; **account deletion must wipe all usage
-facts, model rows, batches, and devices for the user**.
+Server keeps history until a retention ADR exists; **account deletion must wipe all
+usage facts, model rows, batches, and devices for the user**.
 
 ### 5) Contract version
 

@@ -251,7 +251,7 @@ Suggested triggers (desktop implementation later):
   "window": {
     "startDate": "2026-06-10",
     "endDate": "2026-07-09",
-    "scope": "rolling"
+    "scope": "incremental"
   },
   "facts": [
     {
@@ -299,17 +299,17 @@ Suggested triggers (desktop implementation later):
 
 #### Top-level fields
 
-| Field               | Required | Meaning                                                    |
-| ------------------- | -------- | ---------------------------------------------------------- |
-| `contractVersion`   | yes      | desktop↔API sync contract; start at `1`                    |
-| `clientDeviceId`    | yes      | same install id used in device `PUT`                       |
-| `appVersion`        | yes      | desktop version for diagnostics                            |
-| `reportingTimezone` | yes      | current local reporting timezone                           |
-| `clientRevision`    | yes      | monotonic integer; higher wins on conflict for same device |
-| `window.startDate`  | yes      | inclusive `YYYY-MM-DD` covered by this batch               |
-| `window.endDate`    | yes      | inclusive `YYYY-MM-DD`                                     |
-| `window.scope`      | yes      | v1: always `"rolling"`                                     |
-| `facts`             | yes      | array; may be empty (heartbeat / no data)                  |
+| Field               | Required | Meaning                                                                                                                                                                                           |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contractVersion`   | yes      | desktop↔API sync contract; start at `1`                                                                                                                                                           |
+| `clientDeviceId`    | yes      | same install id used in device `PUT`                                                                                                                                                              |
+| `appVersion`        | yes      | desktop version for diagnostics                                                                                                                                                                   |
+| `reportingTimezone` | yes      | current local reporting timezone                                                                                                                                                                  |
+| `clientRevision`    | yes      | monotonic integer; higher wins on conflict for same device                                                                                                                                        |
+| `window.startDate`  | yes      | inclusive `YYYY-MM-DD` covered by this batch                                                                                                                                                      |
+| `window.endDate`    | yes      | inclusive `YYYY-MM-DD`                                                                                                                                                                            |
+| `window.scope`      | yes      | `"full"` (first baseline / full-history generation; may be split) or `"incremental"` (later refreshes). Deprecated: `"rolling"` (accepted for compatibility). Neither scope deletes absent facts. |
+| `facts`             | yes      | array; may be empty (heartbeat / no data)                                                                                                                                                         |
 
 #### Each fact
 
@@ -382,21 +382,25 @@ claude-code:daily:v1:Asia/Jakarta:2026-07-08
 
 #### Window / tombstone rules for desktop
 
-v1 desktop always uses:
+Product upload-policy scopes:
 
 ```json
-"window": { "scope": "rolling", "startDate": "…", "endDate": "…" }
+"window": { "scope": "full" | "incremental", "startDate": "…", "endDate": "…" }
 ```
+
+- **`full`**: first successful upload generation per account+install (all local
+  daily history). May be **split** across multiple requests (1,000-fact limit).
+- **`incremental`**: later uploads for a refresh date range / successful sources.
+- Deprecated: `"rolling"` may still be accepted by the API for compatibility.
 
 Desktop should include:
 
-- all `active` / `missing` daily facts in the rolling window,
+- facts for the export chunk (full baseline chunk or incremental refresh scope),
 - recent `removed` facts still needed so server can soft-delete.
 
-Desktop must **not** expect the server to delete out-of-window history on a
-rolling push. Full-history wipe is not a desktop collect operation.
-
-Recommended initial window: **last 90 days** (final value can be config).
+Desktop must **not** expect the server to delete facts that are merely absent
+from a request (split full chunks and partial refreshes omit facts intentionally).
+Removals require explicit `recordState: "removed"`.
 
 #### Batch limits desktop should assume
 
@@ -409,9 +413,9 @@ Backend should publish exact limits; desktop needs at least:
 | Max body size                              | 1–2 MiB              |
 | Max concurrent in-flight pushes per device | 1 (desktop-enforced) |
 
-If the rolling window exceeds the fact limit, desktop splits chronologically into
-multiple batches, each with its own `Idempotency-Key`, same `clientRevision`
-family or strictly increasing revisions.
+If a full or incremental export exceeds the fact limit, desktop splits
+chronologically into multiple batches, each with its own `Idempotency-Key`, same
+`clientRevision` family or strictly increasing revisions.
 
 **Success response (`200`)**
 
@@ -424,7 +428,7 @@ family or strictly increasing revisions.
     "window": {
       "startDate": "2026-06-10",
       "endDate": "2026-07-09",
-      "scope": "rolling"
+      "scope": "incremental"
     },
     "counts": {
       "received": 12,
@@ -617,7 +621,8 @@ AND aggregation_timezone = current reporting timezone
 AND record_state in (active, missing, removed)  -- include recent removed
 ```
 
-Exact removed retention for export can match the rolling window.
+Exact removed retention for export follows product upload-policy (full baseline
+or incremental refresh scope).
 
 ## Error and retry contract desktop depends on
 
@@ -712,7 +717,7 @@ Backend Phase 1 is complete for desktop when:
   "window": {
     "startDate": "2026-07-08",
     "endDate": "2026-07-08",
-    "scope": "rolling"
+    "scope": "incremental"
   },
   "facts": [
     {

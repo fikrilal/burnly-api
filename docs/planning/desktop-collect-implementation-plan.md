@@ -200,8 +200,10 @@ Server **reconstructs** and rejects mismatches.
 
 **Rolling window:**
 
-- v1 batches use `window.scope = "rolling"`.
-- Server must **not** delete out-of-window history on rolling push.
+- Batches use `window.scope = "full"` (first baseline generation; may be split) or
+  `"incremental"` (later refreshes). Deprecated: `"rolling"`.
+- Server must **not** delete facts merely absent from a request (no scope-based
+  tombstone sweeps).
 - Soft-remove only when a fact arrives with `recordState = removed` (or
   equivalent tombstone rule documented in ADR).
 
@@ -425,14 +427,14 @@ Prefer fixtures from `desktop-collect-api-requirements.md` as golden payloads.
 
 ## Risks
 
-| Risk                                  | Mitigation                                                            |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| DTO drift between docs and OpenAPI    | Requirements win until OpenAPI ships; then OpenAPI is client contract |
-| Partial batch complexity              | All-or-nothing validation in v1                                       |
-| Multi-device double count confusion   | Document sum-across-devices; namespace by device in storage           |
-| Rolling window treated as full resync | Never delete out-of-window history on `scope=rolling`                 |
-| Account deletion misses tables        | Explicit wipe checklist + test in Phase D                             |
-| Overbuilding web reads early          | Keep read APIs out of this plan                                       |
+| Risk                                           | Mitigation                                                            |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| DTO drift between docs and OpenAPI             | Requirements win until OpenAPI ships; then OpenAPI is client contract |
+| Partial batch complexity                       | All-or-nothing validation in v1                                       |
+| Multi-device double count confusion            | Document sum-across-devices; namespace by device in storage           |
+| Split full / partial refresh treated as delete | Never delete absent facts; only `recordState: removed`                |
+| Account deletion misses tables                 | Explicit wipe checklist + test in Phase D                             |
+| Overbuilding web reads early                   | Keep read APIs out of this plan                                       |
 
 ## Open questions (non-blocking defaults)
 

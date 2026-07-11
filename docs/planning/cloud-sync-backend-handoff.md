@@ -519,7 +519,7 @@ Body sketch:
   "window": {
     "startDate": "2026-06-01",
     "endDate": "2026-07-09",
-    "scope": "rolling"
+    "scope": "full"
   },
   "facts": [
     {
@@ -572,14 +572,16 @@ Server behavior:
 4. Upsert each fact by `(user, device, identityKey)`.
 5. Replace model children for each upserted parent (scoped replace).
 6. For `recordState = removed`, mark cloud row removed (soft).
-7. Optionally process tombstones for identities absent from a **full** window
-   only if client declares `scope: "full"` (dangerous; keep off in v1 rolling
-   pushes).
-8. Return accepted counts + server `syncedAt`.
+7. **Never** delete facts that are merely absent from the request. `scope: "full"`
+   describes an export _generation_ and may be split across many requests (1,000
+   fact limit). `scope: "incremental"` may omit failed collectors. Deletion requires
+   an explicit fact with `recordState: "removed"`.
+8. Return accepted counts + server `syncedAt`, echoing the request `window.scope`.
 
-**v1 rolling window recommendation:** desktop sends last N days (suggest 30–90)
-of non-removed + recently removed facts. Do not server-delete out-of-window
-history on rolling pushes.
+**Upload scopes (product upload-policy):** first successful upload per account+install
+uses `scope: "full"` (all local daily history; may be split). Later uploads use
+`scope: "incremental"` for the refresh date range / successful sources. Deprecated
+`scope: "rolling"` may be accepted for compatibility.
 
 #### Read APIs for web (v1)
 
@@ -741,7 +743,7 @@ One active Claude day with one model:
   "window": {
     "startDate": "2026-07-08",
     "endDate": "2026-07-08",
-    "scope": "rolling"
+    "scope": "full"
   },
   "facts": [
     {

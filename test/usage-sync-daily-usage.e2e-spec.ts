@@ -3,6 +3,7 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
+  getObjectField,
   getStringField,
   uniqueEmail,
   type AuthE2eHarness,
@@ -19,7 +20,7 @@ function canonicalFixture(clientDeviceId: string, overrides: Record<string, unkn
     window: {
       startDate: '2026-07-08',
       endDate: '2026-07-08',
-      scope: 'rolling',
+      scope: 'incremental',
     },
     facts: [
       {
@@ -118,6 +119,11 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
 
     const data = getBodyData(res.body);
     expect(data.clientDeviceId).toBe(clientDeviceId);
+    expect(getObjectField(data, 'window')).toMatchObject({
+      startDate: '2026-07-08',
+      endDate: '2026-07-08',
+      scope: 'incremental',
+    });
     expect(data.counts).toMatchObject({
       received: 1,
       upserted: 1,
@@ -138,6 +144,129 @@ describeAuthE2eSuite('Usage Sync Daily Usage Push (e2e)', (harness: AuthE2eHarne
     expect(facts[0]?.totalTokens).toBe(150n);
     expect(facts[0]?.models).toHaveLength(1);
     expect(device.lastSyncAt).not.toBeNull();
+  });
+
+  it('accepts full and incremental scopes and echoes them in the response', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+
+    for (const scope of ['full', 'incremental'] as const) {
+      const res = await push(
+        accessToken,
+        canonicalFixture(clientDeviceId, {
+          clientRevision: scope === 'full' ? 1 : 2,
+          window: {
+            startDate: '2026-07-08',
+            endDate: '2026-07-08',
+            scope,
+          },
+        }),
+      ).expect(200);
+
+      expect(getObjectField(getBodyData(res.body), 'window')).toMatchObject({ scope });
+
+      const batch = await prisma.syncBatch.findFirst({
+        where: { device: { clientDeviceId } },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(batch?.windowScope).toBe(scope);
+    }
+  });
+
+  it('accepts deprecated rolling scope for compatibility and echoes it', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+
+    const res = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        window: {
+          startDate: '2026-07-08',
+          endDate: '2026-07-08',
+          scope: 'rolling',
+        },
+      }),
+    ).expect(200);
+
+    expect(getObjectField(getBodyData(res.body), 'window')).toMatchObject({
+      startDate: '2026-07-08',
+      endDate: '2026-07-08',
+      scope: 'rolling',
+    });
+  });
+
+  it('rejects invalid window.scope without writing', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+
+    const res = await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        window: {
+          startDate: '2026-07-08',
+          endDate: '2026-07-08',
+          scope: 'resync',
+        },
+      }),
+    ).expect(400);
+
+    expect(res.body.code).toBe('VALIDATION_FAILED');
+
+    const device = await prisma.syncDevice.findFirstOrThrow({
+      where: { clientDeviceId },
+    });
+    expect(await prisma.dailyUsageFact.count({ where: { deviceId: device.id } })).toBe(0);
+  });
+
+  it('split full uploads do not delete facts absent from a later chunk', async () => {
+    const { accessToken, clientDeviceId } = await registerAndDevice();
+    const baseFact = canonicalFixture(clientDeviceId).facts[0];
+    if (baseFact === undefined) {
+      throw new Error('expected canonical fixture to include a fact');
+    }
+
+    const dayA = {
+      ...baseFact,
+      identityKey: 'claude-code:daily:v1:UTC:2026-07-07',
+      usageDate: '2026-07-07',
+      firstSeenAt: '2026-07-07T10:00:00.000Z',
+      lastSeenAt: '2026-07-07T12:00:00.000Z',
+    };
+    const dayB = {
+      ...baseFact,
+      identityKey: 'claude-code:daily:v1:UTC:2026-07-08',
+      usageDate: '2026-07-08',
+    };
+
+    // First chunk of a split full export (only day A).
+    await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        clientRevision: 1,
+        window: { startDate: '2026-07-01', endDate: '2026-07-31', scope: 'full' },
+        facts: [dayA],
+      }),
+    ).expect(200);
+
+    // Second chunk omits day A — must not delete day A.
+    await push(
+      accessToken,
+      canonicalFixture(clientDeviceId, {
+        clientRevision: 2,
+        window: { startDate: '2026-07-01', endDate: '2026-07-31', scope: 'full' },
+        facts: [dayB],
+      }),
+    ).expect(200);
+
+    const device = await prisma.syncDevice.findFirstOrThrow({
+      where: { clientDeviceId },
+    });
+    const keys = await prisma.dailyUsageFact.findMany({
+      where: { deviceId: device.id },
+      select: { identityKey: true, recordState: true },
+      orderBy: { identityKey: 'asc' },
+    });
+    expect(keys).toEqual([
+      { identityKey: 'claude-code:daily:v1:UTC:2026-07-07', recordState: 'active' },
+      { identityKey: 'claude-code:daily:v1:UTC:2026-07-08', recordState: 'active' },
+    ]);
   });
 
   it('requires Idempotency-Key', async () => {
