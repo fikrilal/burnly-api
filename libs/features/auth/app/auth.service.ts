@@ -5,6 +5,10 @@ import type { AuthPasswordAuthService } from './auth-password-auth.service';
 import type { AuthOidcAuthService } from './auth-oidc-auth.service';
 import type { AuthEmailVerificationService } from './auth-email-verification.service';
 import type { AuthPasswordResetService } from './auth-password-reset.service';
+import type {
+  AuthDesktopHandoffService,
+  CreateDesktopHandoffResult,
+} from './auth-desktop-handoff.service';
 
 export class AuthService {
   constructor(
@@ -13,6 +17,7 @@ export class AuthService {
     private readonly oidcAuth: AuthOidcAuthService,
     private readonly emailVerification: AuthEmailVerificationService,
     private readonly passwordReset: AuthPasswordResetService,
+    private readonly desktopHandoff: AuthDesktopHandoffService,
   ) {}
 
   async registerWithPassword(input: {
@@ -97,5 +102,30 @@ export class AuthService {
 
   async getPublicJwks(): Promise<unknown> {
     return this.sessionLifecycle.getPublicJwks();
+  }
+
+  async createDesktopHandoff(input: {
+    userId: string;
+    redirectUri: string;
+    codeChallenge: string;
+    codeChallengeMethod: 'S256';
+    state: string;
+    client: 'desktop';
+    ip?: string;
+  }): Promise<CreateDesktopHandoffResult> {
+    return await this.desktopHandoff.createHandoff(input);
+  }
+
+  async exchangeDesktopToken(input: {
+    code: string;
+    codeVerifier: string;
+    redirectUri: string;
+    client: 'desktop';
+    deviceId?: string;
+    deviceName?: string;
+    ip?: string;
+    userAgent?: string;
+  }): Promise<AuthResult> {
+    return await this.desktopHandoff.exchangeToken(input);
   }
 }

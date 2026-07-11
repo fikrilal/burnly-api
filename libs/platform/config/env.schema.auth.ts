@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { EnvVarsDb } from './env.schema.db';
 
 export class EnvVarsAuth extends EnvVarsDb {
@@ -124,4 +124,57 @@ export class EnvVarsAuth extends EnvVarsDb {
   @IsOptional()
   @IsString()
   AUTH_OIDC_GOOGLE_CLIENT_IDS?: string;
+
+  /**
+   * Comma-separated exact redirect_uri allowlist for desktop handoff
+   * (e.g. burnly://auth/callback,http://127.0.0.1:39201/callback).
+   */
+  @IsOptional()
+  @IsString()
+  AUTH_DESKTOP_REDIRECT_URIS?: string;
+
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 60))
+  @IsOptional()
+  @IsInt()
+  @Min(10)
+  @Max(300)
+  AUTH_DESKTOP_HANDOFF_TTL_SECONDS: number = 60;
+
+  /** Desktop handoff rate limits (IP). */
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 30))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_IP_MAX_ATTEMPTS: number = 30;
+
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 5 * 60))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_IP_WINDOW_SECONDS: number = 5 * 60;
+
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 15 * 60))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_IP_BLOCK_SECONDS: number = 15 * 60;
+
+  /** Desktop handoff rate limits (authenticated user on create). */
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 20))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_USER_MAX_ATTEMPTS: number = 20;
+
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 5 * 60))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_USER_WINDOW_SECONDS: number = 5 * 60;
+
+  @Transform(({ value }) => (value !== undefined ? Number(value) : 15 * 60))
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  AUTH_DESKTOP_HANDOFF_USER_BLOCK_SECONDS: number = 15 * 60;
 }

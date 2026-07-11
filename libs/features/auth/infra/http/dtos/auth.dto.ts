@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsIn, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsArray,
+  IsEmail,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { AUTH_METHOD_VALUES } from '../../../../../shared/auth/auth-method';
 import { MeDto } from '../../../../users/infra/http/dtos/me.dto';
 import { AUTH_PASSWORD_MIN_LENGTH } from './password-policy';
@@ -156,6 +164,93 @@ export class LogoutRequestDto {
   @IsString()
   @MinLength(1)
   refreshToken!: string;
+}
+
+export class DesktopHandoffRequestDto {
+  @ApiProperty({
+    example: 'burnly://auth/callback',
+    description: 'Must match AUTH_DESKTOP_REDIRECT_URIS allowlist exactly.',
+  })
+  @IsString()
+  @MinLength(1)
+  redirectUri!: string;
+
+  @ApiProperty({
+    description: 'PKCE S256 code_challenge (base64url(SHA256(code_verifier))).',
+  })
+  @IsString()
+  @MinLength(43)
+  @MaxLength(128)
+  codeChallenge!: string;
+
+  @ApiProperty({ enum: ['S256'], example: 'S256' })
+  @IsString()
+  @IsIn(['S256'])
+  codeChallengeMethod!: 'S256';
+
+  @ApiProperty({ description: 'Opaque CSRF state echoed back to the desktop.' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(256)
+  state!: string;
+
+  @ApiProperty({ enum: ['desktop'], example: 'desktop' })
+  @IsString()
+  @IsIn(['desktop'])
+  client!: 'desktop';
+}
+
+export class DesktopHandoffDataDto {
+  @ApiProperty({ description: 'One-time handoff code (send to desktop via redirect).' })
+  code!: string;
+
+  @ApiProperty({ example: 60 })
+  expiresIn!: number;
+
+  @ApiProperty({ example: 'burnly://auth/callback' })
+  redirectUri!: string;
+
+  @ApiProperty()
+  state!: string;
+}
+
+export class DesktopHandoffEnvelopeDto {
+  @ApiProperty({ type: DesktopHandoffDataDto })
+  data!: DesktopHandoffDataDto;
+}
+
+export class DesktopTokenRequestDto {
+  @ApiProperty({ description: 'One-time code from web redirect.' })
+  @IsString()
+  @MinLength(16)
+  @MaxLength(256)
+  code!: string;
+
+  @ApiProperty({ description: 'PKCE code_verifier (43–128 chars).' })
+  @IsString()
+  @MinLength(43)
+  @MaxLength(128)
+  codeVerifier!: string;
+
+  @ApiProperty({ example: 'burnly://auth/callback' })
+  @IsString()
+  @MinLength(1)
+  redirectUri!: string;
+
+  @ApiProperty({ enum: ['desktop'], example: 'desktop' })
+  @IsString()
+  @IsIn(['desktop'])
+  client!: 'desktop';
+
+  @ApiProperty({ required: false, description: 'Stable desktop install id (recommended).' })
+  @IsOptional()
+  @IsString()
+  deviceId?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  deviceName?: string;
 }
 
 export class ChangePasswordRequestDto {

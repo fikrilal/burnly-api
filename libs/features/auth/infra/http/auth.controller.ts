@@ -38,6 +38,9 @@ import {
   AuthResultEnvelopeDto,
   AuthResultWithMeEnvelopeDto,
   ChangePasswordRequestDto,
+  DesktopHandoffEnvelopeDto,
+  DesktopHandoffRequestDto,
+  DesktopTokenRequestDto,
   LogoutRequestDto,
   OidcConnectRequestDto,
   OidcExchangeRequestDto,
@@ -399,5 +402,79 @@ export class AuthController {
   @ApiNoContentResponse()
   async logout(@Body() body: LogoutRequestDto) {
     await this.auth.logout({ refreshToken: body.refreshToken });
+  }
+
+  @Post('desktop/handoff')
+  @UseGuards(AccessTokenGuard)
+  @ApiBearerAuth('access-token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    operationId: 'auth.desktop.handoff',
+    summary: 'Create desktop handoff code (web)',
+    description:
+      'Authenticated burnly-web creates a short-lived one-time code after browser login. ' +
+      'Redirect the browser to redirectUri?code=&state=. Desktop exchanges the code via auth.desktop.token. ' +
+      'See docs/planning/desktop-auth-via-web.md and ADR 0022.',
+  })
+  @ApiErrorCodes([
+    ErrorCode.VALIDATION_FAILED,
+    ErrorCode.UNAUTHORIZED,
+    ErrorCode.RATE_LIMITED,
+    AuthErrorCode.AUTH_DESKTOP_REDIRECT_URI_INVALID,
+    AuthErrorCode.AUTH_DESKTOP_HANDOFF_INVALID,
+    AuthErrorCode.AUTH_DESKTOP_HANDOFF_UNAVAILABLE,
+    AuthErrorCode.AUTH_USER_SUSPENDED,
+    ErrorCode.INTERNAL,
+  ])
+  @ApiOkResponse({ type: DesktopHandoffEnvelopeDto })
+  async createDesktopHandoff(
+    @CurrentPrincipal() principal: AuthPrincipal,
+    @Body() body: DesktopHandoffRequestDto,
+    @ClientContext() client: ClientContextValue,
+  ) {
+    return await this.auth.createDesktopHandoff({
+      userId: principal.userId,
+      redirectUri: body.redirectUri,
+      codeChallenge: body.codeChallenge,
+      codeChallengeMethod: body.codeChallengeMethod,
+      state: body.state,
+      client: body.client,
+      ip: client.ip,
+    });
+  }
+
+  @Post('desktop/token')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    operationId: 'auth.desktop.token',
+    summary: 'Exchange desktop handoff code',
+    description:
+      'Desktop exchanges a one-time handoff code + PKCE verifier for first-party access + refresh tokens. ' +
+      'Mints a new session (separate from the browser session).',
+  })
+  @ApiErrorCodes([
+    ErrorCode.VALIDATION_FAILED,
+    ErrorCode.RATE_LIMITED,
+    AuthErrorCode.AUTH_DESKTOP_HANDOFF_INVALID,
+    AuthErrorCode.AUTH_USER_SUSPENDED,
+    ErrorCode.INTERNAL,
+  ])
+  @ApiOkResponse({ type: AuthResultWithMeEnvelopeDto })
+  async exchangeDesktopToken(
+    @Body() body: DesktopTokenRequestDto,
+    @ClientContext() client: ClientContextValue,
+  ) {
+    const result = await this.auth.exchangeDesktopToken({
+      code: body.code,
+      codeVerifier: body.codeVerifier,
+      redirectUri: body.redirectUri,
+      client: body.client,
+      deviceId: body.deviceId,
+      deviceName: body.deviceName,
+      ip: client.ip,
+      userAgent: client.userAgent,
+    });
+    const user = await this.users.getMe(result.user.id);
+    return { ...result, user };
   }
 }

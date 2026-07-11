@@ -14,6 +14,8 @@ import { AuthPasswordAuthService } from './auth-password-auth.service';
 import { AuthOidcAuthService } from './auth-oidc-auth.service';
 import { AuthEmailVerificationService } from './auth-email-verification.service';
 import { AuthPasswordResetService } from './auth-password-reset.service';
+import { AuthDesktopHandoffService } from './auth-desktop-handoff.service';
+import type { DesktopHandoffStore } from './ports/desktop-handoff.store';
 import type { AuthConfig } from './auth.config';
 
 function unimplemented(): never {
@@ -104,6 +106,7 @@ function makeService(params: {
     accessTokenTtlSeconds: 900,
     refreshTokenTtlSeconds: 60 * 60 * 24 * 30,
     passwordMinLength: 10,
+    desktopHandoffTtlSeconds: 60,
   };
   const sessions = new AuthSessionLifecycleService(params.repo, accessTokens, clock, config);
   const passwordAuth = new AuthPasswordAuthService(
@@ -118,8 +121,28 @@ function makeService(params: {
   const oidcAuth = new AuthOidcAuthService(params.repo, params.oidcVerifier, clock, sessions);
   const emailVerification = new AuthEmailVerificationService(params.repo, clock);
   const passwordReset = new AuthPasswordResetService(params.repo, dummyHasher, clock, config);
+  const handoffStore: DesktopHandoffStore = {
+    save: async () => false,
+    consume: async () => null,
+  };
+  const rateLimiter = { assertAllowed: async () => undefined };
+  const desktopHandoff = new AuthDesktopHandoffService(
+    params.repo,
+    handoffStore,
+    rateLimiter,
+    sessions,
+    clock,
+    config,
+  );
 
-  return new AuthService(sessions, passwordAuth, oidcAuth, emailVerification, passwordReset);
+  return new AuthService(
+    sessions,
+    passwordAuth,
+    oidcAuth,
+    emailVerification,
+    passwordReset,
+    desktopHandoff,
+  );
 }
 
 describe('AuthService.exchangeOidc', () => {

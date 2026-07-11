@@ -334,6 +334,68 @@ paths:
         - VALIDATION_FAILED
         - AUTH_REFRESH_TOKEN_INVALID
         - INTERNAL
+  /v1/auth/desktop/handoff:
+    post:
+      description: Authenticated burnly-web creates a short-lived one-time code after
+        browser login. Redirect the browser to redirectUri?code=&state=. Desktop
+        exchanges the code via auth.desktop.token. See
+        docs/planning/desktop-auth-via-web.md and ADR 0022.
+      operationId: auth.desktop.handoff
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesktopHandoffRequestDto"
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesktopHandoffEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Create desktop handoff code (web)
+      tags: *a1
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - RATE_LIMITED
+        - AUTH_DESKTOP_REDIRECT_URI_INVALID
+        - AUTH_DESKTOP_HANDOFF_INVALID
+        - AUTH_DESKTOP_HANDOFF_UNAVAILABLE
+        - AUTH_USER_SUSPENDED
+        - INTERNAL
+  /v1/auth/desktop/token:
+    post:
+      description: Desktop exchanges a one-time handoff code + PKCE verifier for
+        first-party access + refresh tokens. Mints a new session (separate from
+        the browser session).
+      operationId: auth.desktop.token
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DesktopTokenRequestDto"
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResultWithMeEnvelopeDto"
+      summary: Exchange desktop handoff code
+      tags: *a1
+      x-error-codes:
+        - VALIDATION_FAILED
+        - RATE_LIMITED
+        - AUTH_DESKTOP_HANDOFF_INVALID
+        - AUTH_USER_SUSPENDED
+        - INTERNAL
   /.well-known/jwks.json:
     get:
       description: Publishes public keys used to verify access tokens.
@@ -1098,6 +1160,88 @@ components:
           example: <refresh-token>
       required:
         - refreshToken
+    DesktopHandoffRequestDto:
+      type: object
+      properties:
+        redirectUri:
+          type: string
+          example: burnly://auth/callback
+          description: Must match AUTH_DESKTOP_REDIRECT_URIS allowlist exactly.
+        codeChallenge:
+          type: string
+          description: PKCE S256 code_challenge (base64url(SHA256(code_verifier))).
+        codeChallengeMethod:
+          type: string
+          enum:
+            - S256
+          example: S256
+        state:
+          type: string
+          description: Opaque CSRF state echoed back to the desktop.
+        client:
+          type: string
+          enum:
+            - desktop
+          example: desktop
+      required:
+        - redirectUri
+        - codeChallenge
+        - codeChallengeMethod
+        - state
+        - client
+    DesktopHandoffDataDto:
+      type: object
+      properties:
+        code:
+          type: string
+          description: One-time handoff code (send to desktop via redirect).
+        expiresIn:
+          type: number
+          example: 60
+        redirectUri:
+          type: string
+          example: burnly://auth/callback
+        state:
+          type: string
+      required:
+        - code
+        - expiresIn
+        - redirectUri
+        - state
+    DesktopHandoffEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DesktopHandoffDataDto"
+      required:
+        - data
+    DesktopTokenRequestDto:
+      type: object
+      properties:
+        code:
+          type: string
+          description: One-time code from web redirect.
+        codeVerifier:
+          type: string
+          description: PKCE code_verifier (43–128 chars).
+        redirectUri:
+          type: string
+          example: burnly://auth/callback
+        client:
+          type: string
+          enum:
+            - desktop
+          example: desktop
+        deviceId:
+          type: string
+          description: Stable desktop install id (recommended).
+        deviceName:
+          type: string
+      required:
+        - code
+        - codeVerifier
+        - redirectUri
+        - client
     MeSessionDto:
       type: object
       properties:

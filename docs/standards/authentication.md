@@ -149,6 +149,10 @@ Typical endpoints (names may vary by project):
 - `POST /v1/auth/password/login`
 - `POST /v1/auth/refresh`
 - `POST /v1/auth/logout`
+- `POST /v1/auth/desktop/handoff` (Bearer; web creates one-time code after browser login)
+- `POST /v1/auth/desktop/token` (desktop exchanges code + PKCE for first-party tokens)
+
+Desktop product login is **web-mediated** (Google/GitHub on burnly-web, then handoff). See ADR 0022 and `docs/planning/desktop-auth-via-web.md`.
 
 ## Security Notes
 

@@ -15,11 +15,14 @@ import { AuthPasswordAuthService } from '../app/auth-password-auth.service';
 import { AuthOidcAuthService } from '../app/auth-oidc-auth.service';
 import { AuthEmailVerificationService } from '../app/auth-email-verification.service';
 import { AuthPasswordResetService } from '../app/auth-password-reset.service';
+import { AuthDesktopHandoffService } from '../app/auth-desktop-handoff.service';
 import { AuthController } from './http/auth.controller';
 import { JwksController } from './http/jwks.controller';
 import { MeSessionsController } from './http/me-sessions.controller';
 import { MePushTokenController } from './http/me-push-token.controller';
 import { PrismaAuthRepository } from './persistence/prisma-auth.repository';
+import { RedisDesktopHandoffStore } from './persistence/redis-desktop-handoff.store';
+import { RedisDesktopHandoffRateLimiter } from './rate-limit/redis-desktop-handoff-rate-limiter';
 import { AuthEmailVerificationJobs } from './jobs/auth-email-verification.jobs';
 import { AuthPasswordResetJobs } from './jobs/auth-password-reset.jobs';
 import { RedisEmailVerificationRateLimiter } from './rate-limit/redis-email-verification-rate-limiter';
@@ -58,6 +61,8 @@ import { AUTH_CONFIG, AUTH_DUMMY_PASSWORD_HASH } from './auth.tokens';
     RedisEmailVerificationRateLimiter,
     RedisLoginRateLimiter,
     RedisPasswordResetRateLimiter,
+    RedisDesktopHandoffStore,
+    RedisDesktopHandoffRateLimiter,
     provideConstructedClockedAppService({
       provide: AuthSessionsService,
       inject: [PrismaAuthRepository],
@@ -76,6 +81,8 @@ import { AUTH_CONFIG, AUTH_DUMMY_PASSWORD_HASH } from './auth.tokens';
         refreshTokenTtlSeconds:
           config.get<number>('AUTH_REFRESH_TOKEN_TTL_SECONDS') ?? 60 * 60 * 24 * 30,
         passwordMinLength: config.get<number>('AUTH_PASSWORD_MIN_LENGTH') ?? 10,
+        desktopRedirectUrisRaw: config.get<string>('AUTH_DESKTOP_REDIRECT_URIS'),
+        desktopHandoffTtlSeconds: config.get<number>('AUTH_DESKTOP_HANDOFF_TTL_SECONDS') ?? 60,
       }),
     }),
     provideAppService({
@@ -167,6 +174,33 @@ import { AUTH_CONFIG, AUTH_DUMMY_PASSWORD_HASH } from './auth.tokens';
         clock,
       ) => new AuthPasswordResetService(repo, passwordHasher, clock, config),
     }),
+    provideClockedAppService<
+      AuthDesktopHandoffService,
+      [
+        PrismaAuthRepository,
+        RedisDesktopHandoffStore,
+        RedisDesktopHandoffRateLimiter,
+        AuthSessionLifecycleService,
+        AuthConfig,
+      ]
+    >({
+      provide: AuthDesktopHandoffService,
+      inject: [
+        PrismaAuthRepository,
+        RedisDesktopHandoffStore,
+        RedisDesktopHandoffRateLimiter,
+        AuthSessionLifecycleService,
+        AUTH_CONFIG,
+      ],
+      factory: (
+        repo: PrismaAuthRepository,
+        handoffStore: RedisDesktopHandoffStore,
+        rateLimiter: RedisDesktopHandoffRateLimiter,
+        sessions: AuthSessionLifecycleService,
+        config: AuthConfig,
+        clock,
+      ) => new AuthDesktopHandoffService(repo, handoffStore, rateLimiter, sessions, clock, config),
+    }),
     provideConstructedAppService({
       provide: AuthService,
       inject: [
@@ -175,6 +209,7 @@ import { AUTH_CONFIG, AUTH_DUMMY_PASSWORD_HASH } from './auth.tokens';
         AuthOidcAuthService,
         AuthEmailVerificationService,
         AuthPasswordResetService,
+        AuthDesktopHandoffService,
       ],
       useClass: AuthService,
     }),
