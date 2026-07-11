@@ -904,6 +904,61 @@ paths:
         - FORBIDDEN
         - SYNC_DEVICE_NOT_FOUND
         - INTERNAL
+  /v1/usage/calendar:
+    get:
+      description: Returns a dense per-day series of parent totalTokens for the
+        inclusive from/to range in the given IANA timezone (exact
+        aggregationTimezone match). Empty days are zeros. Sums across devices by
+        default; optional deviceId filters to one clientDeviceId. Max range 366
+        days inclusive. Does not include model children.
+      operationId: usage.calendar.get
+      parameters:
+        - name: from
+          required: true
+          in: query
+          description: Inclusive range start (YYYY-MM-DD). Max 366 days with to.
+          schema:
+            example: 2026-06-01
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: Inclusive range end (YYYY-MM-DD). Must be >= from.
+          schema:
+            example: 2026-07-09
+            type: string
+        - name: timezone
+          required: true
+          in: query
+          description: IANA timezone; filters fact aggregationTimezone (exact match).
+          schema:
+            example: Asia/Jakarta
+            type: string
+        - name: deviceId
+          required: false
+          in: query
+          description: Optional desktop clientDeviceId filter (not server UUID).
+          schema:
+            example: dev_abc123
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageCalendarEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Usage calendar heatmap series
+      tags:
+        - Usage
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -1831,3 +1886,72 @@ components:
           $ref: "#/components/schemas/UsageSummaryDataDto"
       required:
         - data
+    UsageCalendarDayDto:
+      type: object
+      properties:
+        date:
+          type: string
+          example: 2026-06-02
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 2100
+          description: Sum of active parent totalTokens for this date.
+        factCount:
+          type: number
+          example: 2
+        active:
+          type: boolean
+          example: true
+          description: true when factCount > 0 (heatmap / streak activity).
+      required:
+        - date
+        - totalTokens
+        - factCount
+        - active
+    UsageCalendarDataDto:
+      type: object
+      properties:
+        timezone:
+          type: string
+          example: Asia/Jakarta
+        from:
+          type: string
+          example: 2026-06-01
+        to:
+          type: string
+          example: 2026-07-09
+        deviceFilter:
+          type: string
+          nullable: true
+          example: null
+          description: Echo of deviceId query filter when set.
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageCalendarDayDto"
+      required:
+        - timezone
+        - from
+        - to
+        - days
+    UsageCalendarMetaDto:
+      type: object
+      properties:
+        dayCount:
+          type: number
+          example: 39
+          description: Number of days in the dense series (inclusive from..to).
+      required:
+        - dayCount
+    UsageCalendarEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UsageCalendarDataDto"
+        meta:
+          $ref: "#/components/schemas/UsageCalendarMetaDto"
+      required:
+        - data
+        - meta
