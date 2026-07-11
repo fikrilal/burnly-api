@@ -1,6 +1,5 @@
-import { UNKNOWN_MODEL_IDENTITY_KEY } from './model-identity';
-import { GetUsageModelsService } from './get-usage-models.service';
-import type { AggregatedModelRow, UsageReadRepository } from './ports/usage-read.repository';
+import { GetUsageSourcesService } from './get-usage-sources.service';
+import type { UsageReadRepository } from './ports/usage-read.repository';
 import type { SyncDevicesRepository } from './ports/sync-devices.repository';
 import { SyncErrorCode } from './usage-sync.error-codes';
 import type { SyncDeviceRecord } from './usage-sync.types';
@@ -22,23 +21,8 @@ function deviceRecord(): SyncDeviceRecord {
   };
 }
 
-function modelRow(overrides: Partial<AggregatedModelRow> = {}): AggregatedModelRow {
-  return {
-    modelIdentityKey: 'claude-sonnet-4',
-    rawModelId: 'claude-sonnet-4',
-    displayName: null,
-    providerKey: 'anthropic',
-    totalTokens: 80000n,
-    inputTokens: 50000n,
-    outputTokens: 30000n,
-    cacheCreationTokens: 0n,
-    cacheReadTokens: 0n,
-    ...overrides,
-  };
-}
-
-describe('GetUsageModelsService', () => {
-  it('returns parent totals, models, and unattributed remainder', async () => {
+describe('GetUsageSourcesService', () => {
+  it('returns parentTotals and sources sorted by tokens', async () => {
     const reads: UsageReadRepository = {
       sumParentTotals: jest.fn(async () => ({
         totalTokens: 100000n,
@@ -50,20 +34,13 @@ describe('GetUsageModelsService', () => {
       })),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
-      groupParentTotalsBySource: jest.fn(),
+      groupParentTotalsBySource: jest.fn(async () => [
+        { sourceKey: 'claude-code', totalTokens: 70000n, factCount: 20 },
+        { sourceKey: 'codex', totalTokens: 30000n, factCount: 12 },
+      ]),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
-      aggregateModelsByIdentity: jest.fn(async () => [
-        modelRow({ totalTokens: 80000n }),
-        modelRow({
-          modelIdentityKey: UNKNOWN_MODEL_IDENTITY_KEY,
-          rawModelId: null,
-          providerKey: null,
-          totalTokens: 5000n,
-          inputTokens: null,
-          outputTokens: null,
-        }),
-      ]),
+      aggregateModelsByIdentity: jest.fn(),
       maxDeviceLastSyncAt: jest.fn(),
     };
     const devices: SyncDevicesRepository = {
@@ -73,26 +50,24 @@ describe('GetUsageModelsService', () => {
       markSyncSuccess: jest.fn(),
     };
 
-    const service = new GetUsageModelsService(reads, devices);
-    const view = await service.execute({
+    const service = new GetUsageSourcesService(reads, devices);
+    const result = await service.execute({
       userId: 'user-1',
       timezone: 'UTC',
       from: '2026-07-01',
       to: '2026-07-09',
     });
 
-    expect(view.parentTotals).toEqual({ totalTokens: 100000, factCount: 40 });
-    expect(view.models).toHaveLength(2);
-    expect(view.attribution).toEqual({
-      modelsSumTokens: 85000,
-      parentTotalTokens: 100000,
-      unattributedTokens: 15000,
-    });
-    expect(view.deviceFilter).toBeNull();
-    expect(view.sourceFilter).toBeNull();
+    expect(result.meta.sourceCount).toBe(2);
+    expect(result.data.parentTotals).toEqual({ totalTokens: 100000, factCount: 40 });
+    expect(result.data.sources).toEqual([
+      { sourceKey: 'claude-code', totalTokens: 70000, factCount: 20 },
+      { sourceKey: 'codex', totalTokens: 30000, factCount: 12 },
+    ]);
+    expect(result.data.deviceFilter).toBeNull();
   });
 
-  it('passes sourceKey and device filter to repository', async () => {
+  it('passes device filter to repository', async () => {
     const reads: UsageReadRepository = {
       sumParentTotals: jest.fn(async () => ({
         totalTokens: 0n,
@@ -104,10 +79,10 @@ describe('GetUsageModelsService', () => {
       })),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
-      groupParentTotalsBySource: jest.fn(),
+      groupParentTotalsBySource: jest.fn(async () => []),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
-      aggregateModelsByIdentity: jest.fn(async () => []),
+      aggregateModelsByIdentity: jest.fn(),
       maxDeviceLastSyncAt: jest.fn(),
     };
     const devices: SyncDevicesRepository = {
@@ -117,47 +92,28 @@ describe('GetUsageModelsService', () => {
       markSyncSuccess: jest.fn(),
     };
 
-    const service = new GetUsageModelsService(reads, devices);
-    const view = await service.execute({
+    const service = new GetUsageSourcesService(reads, devices);
+    await service.execute({
       userId: 'user-1',
       timezone: 'UTC',
       from: '2026-07-01',
       to: '2026-07-01',
       deviceId: 'dev-1',
-      sourceKey: 'claude-code',
     });
 
-    expect(view.deviceFilter).toBe('dev-1');
-    expect(view.sourceFilter).toBe('claude-code');
-    expect(reads.sumParentTotals).toHaveBeenCalledWith(
+    expect(reads.groupParentTotalsBySource).toHaveBeenCalledWith(
       expect.objectContaining({ deviceId: 'device-uuid' }),
       expect.any(Date),
       expect.any(Date),
-      'claude-code',
-    );
-    expect(reads.aggregateModelsByIdentity).toHaveBeenCalledWith(
-      expect.objectContaining({ deviceId: 'device-uuid' }),
-      expect.any(Date),
-      expect.any(Date),
-      'claude-code',
     );
   });
 
-  it('rejects invalid range, timezone, and missing device', async () => {
+  it('rejects invalid range and missing device', async () => {
     const reads = stubUsageReadRepository();
     const devices = stubSyncDevicesRepository({
       findByUserAndClientDeviceId: jest.fn(async () => null),
     });
-    const service = new GetUsageModelsService(reads, devices);
-
-    await expect(
-      service.execute({
-        userId: 'user-1',
-        timezone: 'Not/A_Zone',
-        from: '2026-07-01',
-        to: '2026-07-02',
-      }),
-    ).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' });
+    const service = new GetUsageSourcesService(reads, devices);
 
     await expect(
       service.execute({

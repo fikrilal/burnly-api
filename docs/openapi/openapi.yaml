@@ -1093,6 +1093,122 @@ paths:
         - FORBIDDEN
         - SYNC_DEVICE_NOT_FOUND
         - INTERNAL
+  /v1/usage/sources:
+    get:
+      description: Returns parent-based totalTokens grouped by product sourceKey
+        (claude-code, codex, …) for the inclusive from/to window. Account
+        parentTotals cover all tools. Multi-device sum by default; optional
+        deviceId filter. Max range 366 days. Tool totals never sum model
+        children.
+      operationId: usage.sources.list
+      parameters:
+        - name: from
+          required: true
+          in: query
+          description: Inclusive range start (YYYY-MM-DD). Max 366 days with to.
+          schema:
+            example: 2026-07-01
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: Inclusive range end (YYYY-MM-DD). Must be >= from.
+          schema:
+            example: 2026-07-09
+            type: string
+        - name: timezone
+          required: true
+          in: query
+          description: IANA timezone; filters fact aggregationTimezone (exact match).
+          schema:
+            example: Asia/Jakarta
+            type: string
+        - name: deviceId
+          required: false
+          in: query
+          description: Optional desktop clientDeviceId filter (not server UUID).
+          schema:
+            example: dev_abc123
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSourcesEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Usage by coding tool (source) over a date range
+      tags: &a8
+        - Usage
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
+  /v1/usage/sources/{sourceKey}/models:
+    get:
+      description: Aggregates daily model children for a single sourceKey.
+        parentTotals are parent facts for that tool only;
+        attribution.unattributedTokens is the remainder vs model sums. Unknown
+        sourceKey returns 200 with zeros/empty models (not 404). Max range 366
+        days.
+      operationId: usage.sources.models.list
+      parameters:
+        - name: sourceKey
+          required: true
+          in: path
+          description: Product source key (URL-encode if needed). Max 64 characters.
+          schema:
+            example: claude-code
+            type: string
+        - name: from
+          required: true
+          in: query
+          description: Inclusive range start (YYYY-MM-DD). Max 366 days with to.
+          schema:
+            example: 2026-07-01
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: Inclusive range end (YYYY-MM-DD). Must be >= from.
+          schema:
+            example: 2026-07-09
+            type: string
+        - name: timezone
+          required: true
+          in: query
+          description: IANA timezone; filters fact aggregationTimezone (exact match).
+          schema:
+            example: Asia/Jakarta
+            type: string
+        - name: deviceId
+          required: false
+          in: query
+          description: Optional desktop clientDeviceId filter (not server UUID).
+          schema:
+            example: dev_abc123
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSourceModelsEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Model breakdown under one coding tool over a date range
+      tags: *a8
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -1197,7 +1313,7 @@ components:
           description: Linked authentication methods on this account.
           items:
             type: string
-            enum: &a9
+            enum: &a10
               - PASSWORD
               - GOOGLE
         profile:
@@ -1243,7 +1359,7 @@ components:
       properties:
         provider:
           type: string
-          enum: &a8
+          enum: &a9
             - GOOGLE
           example: GOOGLE
         idToken:
@@ -1263,7 +1379,7 @@ components:
       properties:
         provider:
           type: string
-          enum: *a8
+          enum: *a9
           example: GOOGLE
         idToken:
           type: string
@@ -1358,7 +1474,7 @@ components:
             refresh responses.
           items:
             type: string
-            enum: *a9
+            enum: *a10
       required:
         - id
         - email
@@ -1717,7 +1833,7 @@ components:
           description: Optional human label (hostname or user-editable name).
         platform:
           type: string
-          enum: &a10
+          enum: &a11
             - linux
             - macos
             - windows
@@ -1745,7 +1861,7 @@ components:
           nullable: true
         platform:
           type: string
-          enum: *a10
+          enum: *a11
           example: linux
         appVersion:
           type: string
@@ -2613,5 +2729,200 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/UsageModelsDataDto"
+      required:
+        - data
+    UsageSourcesParentTotalsDto:
+      type: object
+      properties:
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 100000
+          description: Account-level sum of active parent totalTokens in the window.
+        factCount:
+          type: number
+          example: 40
+      required:
+        - totalTokens
+        - factCount
+    UsageSourceRowDto:
+      type: object
+      properties:
+        sourceKey:
+          type: string
+          example: claude-code
+          description: Product source key (coding tool). Opaque string; new keys may
+            appear over time.
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 70000
+          description: Sum of active parent totalTokens for this source (never model
+            children).
+        factCount:
+          type: number
+          example: 20
+      required:
+        - sourceKey
+        - totalTokens
+        - factCount
+    UsageSourcesDataDto:
+      type: object
+      properties:
+        timezone:
+          type: string
+          example: Asia/Jakarta
+        from:
+          type: string
+          example: 2026-07-01
+        to:
+          type: string
+          example: 2026-07-09
+        deviceFilter:
+          type: string
+          nullable: true
+          example: null
+        parentTotals:
+          $ref: "#/components/schemas/UsageSourcesParentTotalsDto"
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageSourceRowDto"
+      required:
+        - timezone
+        - from
+        - to
+        - parentTotals
+        - sources
+    UsageSourcesMetaDto:
+      type: object
+      properties:
+        sourceCount:
+          type: number
+          example: 2
+          description: Number of sources in the list.
+      required:
+        - sourceCount
+    UsageSourcesEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UsageSourcesDataDto"
+        meta:
+          $ref: "#/components/schemas/UsageSourcesMetaDto"
+      required:
+        - data
+        - meta
+    UsageSourceModelsModelDto:
+      type: object
+      properties:
+        modelIdentityKey:
+          type: string
+          example: claude-sonnet-4
+        rawModelId:
+          type: string
+          nullable: true
+          example: claude-sonnet-4
+        displayName:
+          type: string
+          nullable: true
+        providerKey:
+          type: string
+          nullable: true
+          example: anthropic
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 65000
+        inputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+        outputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+        cacheCreationTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+        cacheReadTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+      required:
+        - modelIdentityKey
+        - totalTokens
+    UsageSourceModelsAttributionDto:
+      type: object
+      properties:
+        modelsSumTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 66000
+        parentTotalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 70000
+          description: Parent totalTokens for this source only (chart baseline).
+        unattributedTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 4000
+          description: max(0, parentTotalTokens - modelsSumTokens).
+      required:
+        - modelsSumTokens
+        - parentTotalTokens
+        - unattributedTokens
+    UsageSourceModelsDataDto:
+      type: object
+      properties:
+        timezone:
+          type: string
+          example: Asia/Jakarta
+        from:
+          type: string
+          example: 2026-07-01
+        to:
+          type: string
+          example: 2026-07-09
+        deviceFilter:
+          type: string
+          nullable: true
+          example: null
+        sourceKey:
+          type: string
+          example: claude-code
+        parentTotals:
+          $ref: "#/components/schemas/UsageSourcesParentTotalsDto"
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/UsageSourceModelsModelDto"
+        attribution:
+          $ref: "#/components/schemas/UsageSourceModelsAttributionDto"
+      required:
+        - timezone
+        - from
+        - to
+        - sourceKey
+        - parentTotals
+        - models
+        - attribution
+    UsageSourceModelsEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UsageSourceModelsDataDto"
       required:
         - data

@@ -6,6 +6,7 @@ import type {
   AggregatedModelRow,
   ParentCostAggregateResult,
   ParentTotalsByDateRow,
+  ParentTotalsBySourceRow,
   ParentTotalsResult,
   UsageReadModelFact,
   UsageReadParentFact,
@@ -242,6 +243,35 @@ export class PrismaUsageReadRepository implements UsageReadRepository {
       totalTokens: row._sum.totalTokens ?? 0n,
       factCount: row._count._all,
     }));
+  }
+
+  async groupParentTotalsBySource(
+    scope: UsageReadScope,
+    fromDate: Date,
+    toDate: Date,
+  ): Promise<readonly ParentTotalsBySourceRow[]> {
+    const client = this.prisma.getClient();
+    const rows = await client.dailyUsageFact.groupBy({
+      by: ['sourceKey'],
+      where: parentWhere(scope, fromDate, toDate),
+      _sum: { totalTokens: true },
+      _count: { _all: true },
+    });
+
+    const mapped: ParentTotalsBySourceRow[] = rows.map((row) => ({
+      sourceKey: row.sourceKey,
+      totalTokens: row._sum.totalTokens ?? 0n,
+      factCount: row._count._all,
+    }));
+
+    mapped.sort((a, b) => {
+      if (a.totalTokens === b.totalTokens) {
+        return a.sourceKey.localeCompare(b.sourceKey);
+      }
+      return a.totalTokens > b.totalTokens ? -1 : 1;
+    });
+
+    return mapped;
   }
 
   async listActiveParentsForDay(

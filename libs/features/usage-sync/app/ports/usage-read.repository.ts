@@ -34,6 +34,12 @@ export type ParentTotalsByDateRow = Readonly<{
   factCount: number;
 }>;
 
+export type ParentTotalsBySourceRow = Readonly<{
+  sourceKey: string;
+  totalTokens: bigint;
+  factCount: number;
+}>;
+
 export type UsageReadDeviceFields = Readonly<{
   clientDeviceId: string;
   displayName: string | null;
@@ -137,6 +143,16 @@ export interface UsageReadRepository {
     fromDate: Date,
     toDate: Date,
   ): Promise<readonly ParentTotalsByDateRow[]>;
+
+  /**
+   * Group active parent totals by product sourceKey for a date range.
+   * Ordered by totalTokens DESC, then sourceKey ASC (app may re-sort if needed).
+   */
+  groupParentTotalsBySource(
+    scope: UsageReadScope,
+    fromDate: Date,
+    toDate: Date,
+  ): Promise<readonly ParentTotalsBySourceRow[]>;
 
   listActiveParentsForDay(
     scope: UsageReadScope,

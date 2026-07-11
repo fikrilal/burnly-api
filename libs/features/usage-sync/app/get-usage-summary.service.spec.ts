@@ -1,9 +1,14 @@
 import type { Clock } from '../../../shared/time';
 import { GetUsageSummaryService } from './get-usage-summary.service';
-import type { ParentCostAggregateResult, ParentTotalsResult, UsageReadRepository } from './ports/usage-read.repository';
+import type {
+  ParentCostAggregateResult,
+  ParentTotalsResult,
+  UsageReadRepository,
+} from './ports/usage-read.repository';
 import type { SyncDevicesRepository } from './ports/sync-devices.repository';
 import { SyncErrorCode } from './usage-sync.error-codes';
 import type { SyncDeviceRecord } from './usage-sync.types';
+import { stubSyncDevicesRepository, stubUsageReadRepository } from './usage-read-test-doubles';
 
 function emptyTotals(overrides: Partial<ParentTotalsResult> = {}): ParentTotalsResult {
   return {
@@ -49,7 +54,12 @@ describe('GetUsageSummaryService', () => {
       sumParentTotals: jest.fn(async (_scope, fromDate, toDate) => {
         calls.push({ from: fromDate.toISOString(), to: toDate.toISOString() });
         if (fromDate.toISOString().startsWith('2026-07-15')) {
-          return emptyTotals({ totalTokens: 100n, factCount: 1, inputTokens: 60n, outputTokens: 40n });
+          return emptyTotals({
+            totalTokens: 100n,
+            factCount: 1,
+            inputTokens: 60n,
+            outputTokens: 40n,
+          });
         }
         if (fromDate.toISOString().startsWith('2026-07-09')) {
           return emptyTotals({ totalTokens: 300n, factCount: 3 });
@@ -58,6 +68,7 @@ describe('GetUsageSummaryService', () => {
       }),
       sumParentCost: jest.fn(async () => emptyCost()),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
       aggregateModelsByIdentity: jest.fn(),
@@ -108,46 +119,24 @@ describe('GetUsageSummaryService', () => {
   });
 
   it('rejects invalid timezone', async () => {
-    const reads = {
-      sumParentTotals: jest.fn(),
-      sumParentCost: jest.fn(),
-      groupParentTotalsByDate: jest.fn(),
-      listActiveParentsForDay: jest.fn(),
-      listModelsForFactIds: jest.fn(),
-      aggregateModelsByIdentity: jest.fn(),
-      maxDeviceLastSyncAt: jest.fn(),
-    } as unknown as UsageReadRepository;
-    const devices = {
-      upsertByClientDeviceId: jest.fn(),
-      findByUserAndClientDeviceId: jest.fn(),
-      listByUser: jest.fn(),
-      markSyncSuccess: jest.fn(),
-    } as unknown as SyncDevicesRepository;
+    const reads = stubUsageReadRepository();
+    const devices = stubSyncDevicesRepository();
 
     const service = new GetUsageSummaryService(reads, devices, clock);
-    await expect(service.execute({ userId: 'user-1', timezone: 'Not/A_Zone' })).rejects.toMatchObject({
+    await expect(
+      service.execute({ userId: 'user-1', timezone: 'Not/A_Zone' }),
+    ).rejects.toMatchObject({
       status: 400,
       code: 'VALIDATION_FAILED',
     });
   });
 
   it('resolves device filter and throws when missing', async () => {
-    const reads = {
-      sumParentTotals: jest.fn(),
-      sumParentCost: jest.fn(),
-      groupParentTotalsByDate: jest.fn(),
-      listActiveParentsForDay: jest.fn(),
-      listModelsForFactIds: jest.fn(),
-      aggregateModelsByIdentity: jest.fn(),
-      maxDeviceLastSyncAt: jest.fn(),
-    } as unknown as UsageReadRepository;
+    const reads = stubUsageReadRepository();
 
-    const devices: SyncDevicesRepository = {
-      upsertByClientDeviceId: jest.fn(),
+    const devices = stubSyncDevicesRepository({
       findByUserAndClientDeviceId: jest.fn(async () => null),
-      listByUser: jest.fn(),
-      markSyncSuccess: jest.fn(),
-    };
+    });
 
     const service = new GetUsageSummaryService(reads, devices, clock);
     await expect(
@@ -163,6 +152,7 @@ describe('GetUsageSummaryService', () => {
       sumParentTotals: jest.fn(async () => emptyTotals()),
       sumParentCost: jest.fn(async () => emptyCost()),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
       aggregateModelsByIdentity: jest.fn(),
@@ -184,7 +174,11 @@ describe('GetUsageSummaryService', () => {
 
     expect(view.deviceFilter).toBe('dev-1');
     expect(reads.sumParentTotals).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', aggregationTimezone: 'UTC', deviceId: 'device-uuid' }),
+      expect.objectContaining({
+        userId: 'user-1',
+        aggregationTimezone: 'UTC',
+        deviceId: 'device-uuid',
+      }),
       expect.any(Date),
       expect.any(Date),
     );

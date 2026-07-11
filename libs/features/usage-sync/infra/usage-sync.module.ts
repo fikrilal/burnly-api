@@ -10,6 +10,8 @@ import { GetSyncStatusService } from '../app/get-sync-status.service';
 import { GetUsageCalendarService } from '../app/get-usage-calendar.service';
 import { GetUsageDayService } from '../app/get-usage-day.service';
 import { GetUsageModelsService } from '../app/get-usage-models.service';
+import { GetUsageSourceModelsService } from '../app/get-usage-source-models.service';
+import { GetUsageSourcesService } from '../app/get-usage-sources.service';
 import { GetUsageSummaryService } from '../app/get-usage-summary.service';
 import { PushDailyUsageService } from '../app/push-daily-usage.service';
 import { SyncDevicesService } from '../app/sync-devices.service';
@@ -19,6 +21,7 @@ import { SyncStatusController } from './http/sync-status.controller';
 import { UsageCalendarController } from './http/usage-calendar.controller';
 import { UsageDayController } from './http/usage-day.controller';
 import { UsageModelsController } from './http/usage-models.controller';
+import { UsageSourcesController } from './http/usage-sources.controller';
 import { UsageSummaryController } from './http/usage-summary.controller';
 import { PrismaDailyUsageFactsRepository } from './persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from './persistence/prisma-sync-batches.repository';
@@ -39,6 +42,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     UsageCalendarController,
     UsageDayController,
     UsageModelsController,
+    UsageSourcesController,
   ],
   providers: [
     PrismaSyncDevicesRepository,
@@ -81,6 +85,16 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
       inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
       useClass: GetUsageModelsService,
     }),
+    provideConstructedAppService({
+      provide: GetUsageSourcesService,
+      inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
+      useClass: GetUsageSourcesService,
+    }),
+    provideConstructedAppService({
+      provide: GetUsageSourceModelsService,
+      inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
+      useClass: GetUsageSourceModelsService,
+    }),
   ],
   exports: [
     PrismaSyncDevicesRepository,
@@ -94,6 +108,8 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     GetUsageCalendarService,
     GetUsageDayService,
     GetUsageModelsService,
+    GetUsageSourcesService,
+    GetUsageSourceModelsService,
   ],
 })
 export class UsageSyncModule {}

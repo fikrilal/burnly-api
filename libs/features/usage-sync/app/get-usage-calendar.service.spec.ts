@@ -3,6 +3,7 @@ import type { UsageReadRepository } from './ports/usage-read.repository';
 import type { SyncDevicesRepository } from './ports/sync-devices.repository';
 import { SyncErrorCode } from './usage-sync.error-codes';
 import type { SyncDeviceRecord } from './usage-sync.types';
+import { stubSyncDevicesRepository, stubUsageReadRepository } from './usage-read-test-doubles';
 
 function deviceRecord(overrides: Partial<SyncDeviceRecord> = {}): SyncDeviceRecord {
   return {
@@ -29,6 +30,7 @@ describe('GetUsageCalendarService', () => {
       groupParentTotalsByDate: jest.fn(async () => [
         { usageDate: '2026-07-02', totalTokens: 2100n, factCount: 2 },
       ]),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
       aggregateModelsByIdentity: jest.fn(),
@@ -70,12 +72,8 @@ describe('GetUsageCalendarService', () => {
   });
 
   it('rejects invalid range and timezone', async () => {
-    const reads = {
-      groupParentTotalsByDate: jest.fn(),
-    } as unknown as UsageReadRepository;
-    const devices = {
-      findByUserAndClientDeviceId: jest.fn(),
-    } as unknown as SyncDevicesRepository;
+    const reads = stubUsageReadRepository();
+    const devices = stubSyncDevicesRepository();
     const service = new GetUsageCalendarService(reads, devices);
 
     await expect(
@@ -108,15 +106,10 @@ describe('GetUsageCalendarService', () => {
   });
 
   it('resolves device filter and throws when missing', async () => {
-    const reads = {
-      groupParentTotalsByDate: jest.fn(),
-    } as unknown as UsageReadRepository;
-    const devices: SyncDevicesRepository = {
-      upsertByClientDeviceId: jest.fn(),
+    const reads = stubUsageReadRepository();
+    const devices = stubSyncDevicesRepository({
       findByUserAndClientDeviceId: jest.fn(async () => null),
-      listByUser: jest.fn(),
-      markSyncSuccess: jest.fn(),
-    };
+    });
     const service = new GetUsageCalendarService(reads, devices);
 
     await expect(
@@ -138,6 +131,7 @@ describe('GetUsageCalendarService', () => {
       sumParentTotals: jest.fn(),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(async () => []),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(),
       listModelsForFactIds: jest.fn(),
       aggregateModelsByIdentity: jest.fn(),

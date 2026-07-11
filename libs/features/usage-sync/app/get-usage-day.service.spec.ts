@@ -7,6 +7,7 @@ import type {
 import type { SyncDevicesRepository } from './ports/sync-devices.repository';
 import { SyncErrorCode } from './usage-sync.error-codes';
 import type { SyncDeviceRecord } from './usage-sync.types';
+import { stubSyncDevicesRepository, stubUsageReadRepository } from './usage-read-test-doubles';
 
 function parent(overrides: Partial<UsageReadParentFact> = {}): UsageReadParentFact {
   return {
@@ -83,6 +84,7 @@ describe('GetUsageDayService', () => {
       sumParentTotals: jest.fn(),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(async () => []),
       listModelsForFactIds: jest.fn(async () => []),
       aggregateModelsByIdentity: jest.fn(),
@@ -137,6 +139,7 @@ describe('GetUsageDayService', () => {
       sumParentTotals: jest.fn(),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(async () => [p1, p2]),
       listModelsForFactIds: jest.fn(async () => [
         model({ dailyUsageFactId: 'fact-1', totalTokens: 2000n }),
@@ -176,12 +179,8 @@ describe('GetUsageDayService', () => {
   });
 
   it('rejects invalid date and timezone', async () => {
-    const reads = {
-      listActiveParentsForDay: jest.fn(),
-    } as unknown as UsageReadRepository;
-    const devices = {
-      findByUserAndClientDeviceId: jest.fn(),
-    } as unknown as SyncDevicesRepository;
+    const reads = stubUsageReadRepository();
+    const devices = stubSyncDevicesRepository();
     const service = new GetUsageDayService(reads, devices);
 
     await expect(
@@ -194,15 +193,10 @@ describe('GetUsageDayService', () => {
   });
 
   it('throws SYNC_DEVICE_NOT_FOUND for missing device filter', async () => {
-    const reads = {
-      listActiveParentsForDay: jest.fn(),
-    } as unknown as UsageReadRepository;
-    const devices: SyncDevicesRepository = {
-      upsertByClientDeviceId: jest.fn(),
+    const reads = stubUsageReadRepository();
+    const devices = stubSyncDevicesRepository({
       findByUserAndClientDeviceId: jest.fn(async () => null),
-      listByUser: jest.fn(),
-      markSyncSuccess: jest.fn(),
-    };
+    });
     const service = new GetUsageDayService(reads, devices);
 
     await expect(
@@ -223,6 +217,7 @@ describe('GetUsageDayService', () => {
       sumParentTotals: jest.fn(),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(async () => []),
       listModelsForFactIds: jest.fn(async () => []),
       aggregateModelsByIdentity: jest.fn(),
@@ -257,6 +252,7 @@ describe('GetUsageDayService', () => {
       sumParentTotals: jest.fn(),
       sumParentCost: jest.fn(),
       groupParentTotalsByDate: jest.fn(),
+      groupParentTotalsBySource: jest.fn(),
       listActiveParentsForDay: jest.fn(async () => many),
       listModelsForFactIds: jest.fn(),
       aggregateModelsByIdentity: jest.fn(),
