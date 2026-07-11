@@ -7,12 +7,14 @@ import {
 } from '../../../platform/di/app-service.provider';
 import { RedisModule } from '../../../platform/redis/redis.module';
 import { GetUsageCalendarService } from '../app/get-usage-calendar.service';
+import { GetUsageDayService } from '../app/get-usage-day.service';
 import { GetUsageSummaryService } from '../app/get-usage-summary.service';
 import { PushDailyUsageService } from '../app/push-daily-usage.service';
 import { SyncDevicesService } from '../app/sync-devices.service';
 import { DailyUsageController } from './http/daily-usage.controller';
 import { SyncDevicesController } from './http/sync-devices.controller';
 import { UsageCalendarController } from './http/usage-calendar.controller';
+import { UsageDayController } from './http/usage-day.controller';
 import { UsageSummaryController } from './http/usage-summary.controller';
 import { PrismaDailyUsageFactsRepository } from './persistence/prisma-daily-usage-facts.repository';
 import { PrismaSyncBatchesRepository } from './persistence/prisma-sync-batches.repository';
@@ -30,6 +32,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     DailyUsageController,
     UsageSummaryController,
     UsageCalendarController,
+    UsageDayController,
   ],
   providers: [
     PrismaSyncDevicesRepository,
@@ -57,6 +60,11 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
       inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
       useClass: GetUsageCalendarService,
     }),
+    provideConstructedAppService({
+      provide: GetUsageDayService,
+      inject: [PrismaUsageReadRepository, PrismaSyncDevicesRepository],
+      useClass: GetUsageDayService,
+    }),
   ],
   exports: [
     PrismaSyncDevicesRepository,
@@ -67,6 +75,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     PushDailyUsageService,
     GetUsageSummaryService,
     GetUsageCalendarService,
+    GetUsageDayService,
   ],
 })
 export class UsageSyncModule {}
