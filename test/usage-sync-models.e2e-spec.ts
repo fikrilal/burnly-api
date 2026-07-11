@@ -3,6 +3,7 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
+  getObjectArrayField,
   getObjectField,
   getStringField,
   uniqueEmail,
@@ -189,7 +190,7 @@ describeAuthE2eSuite('Usage Models (e2e)', (harness: AuthE2eHarness) => {
     const data = getBodyData(all.body);
     expect(getObjectField(data, 'parentTotals')).toEqual({ totalTokens: 3500, factCount: 3 });
 
-    const models = data.models as Array<Record<string, unknown>>;
+    const models = getObjectArrayField(data, 'models');
     const sonnet = models.find((m) => m.modelIdentityKey === 'claude-sonnet-4');
     expect(sonnet?.totalTokens).toBe(2900);
 
@@ -217,7 +218,7 @@ describeAuthE2eSuite('Usage Models (e2e)', (harness: AuthE2eHarness) => {
     const filteredData = getBodyData(filtered.body);
     expect(filteredData.sourceFilter).toBe('claude-code');
     expect(getObjectField(filteredData, 'parentTotals').totalTokens).toBe(3000);
-    const filteredModels = filteredData.models as Array<Record<string, unknown>>;
+    const filteredModels = getObjectArrayField(filteredData, 'models');
     expect(filteredModels.some((m) => m.modelIdentityKey === 'gpt-5')).toBe(false);
     expect(getObjectField(filteredData, 'attribution').parentTotalTokens).toBe(3000);
 

@@ -407,11 +407,7 @@ describeIfDb('usage-sync persistence (int)', () => {
     expect(aggregated[0]?.modelIdentityKey).toBe('claude-sonnet-4');
     expect(aggregated[0]?.totalTokens).toBe(140n);
 
-    const filtered = await reads.sumParentTotals(
-      { ...scope, deviceId: deviceA.id },
-      day1,
-      day2,
-    );
+    const filtered = await reads.sumParentTotals({ ...scope, deviceId: deviceA.id }, day1, day2);
     expect(filtered.totalTokens).toBe(125n);
     expect(filtered.factCount).toBe(2);
 

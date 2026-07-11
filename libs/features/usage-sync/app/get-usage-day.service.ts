@@ -302,9 +302,7 @@ export class GetUsageDayService {
       modelsByParent.set(model.dailyUsageFactId, list);
     }
 
-    const facts = parents.map((parent) =>
-      toFactJson(parent, modelsByParent.get(parent.id) ?? []),
-    );
+    const facts = parents.map((parent) => toFactJson(parent, modelsByParent.get(parent.id) ?? []));
 
     let totalTokens = 0n;
     for (const parent of parents) {

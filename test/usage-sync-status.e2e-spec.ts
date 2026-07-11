@@ -3,6 +3,7 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
+  getObjectArrayField,
   getStringField,
   uniqueEmail,
   type AuthE2eHarness,
@@ -86,7 +87,7 @@ describeAuthE2eSuite('Sync Status (e2e)', (harness: AuthE2eHarness) => {
     const beforeData = getBodyData(before.body);
     expect(beforeData.deviceCount).toBe(2);
     expect(beforeData.lastSyncAt).toBeNull();
-    const devicesBefore = beforeData.devices as Array<Record<string, unknown>>;
+    const devicesBefore = getObjectArrayField(beforeData, 'devices');
     expect(devicesBefore).toHaveLength(2);
     expect(devicesBefore.every((d) => d.lastSyncAt === null)).toBe(true);
     expect(devicesBefore.every((d) => d.lastClientRevision === null)).toBe(true);
@@ -137,7 +138,7 @@ describeAuthE2eSuite('Sync Status (e2e)', (harness: AuthE2eHarness) => {
     expect(typeof afterData.lastSyncAt).toBe('string');
     expect(afterData.lastSyncAt).not.toBeNull();
 
-    const devicesAfter = afterData.devices as Array<Record<string, unknown>>;
+    const devicesAfter = getObjectArrayField(afterData, 'devices');
     const pushed = devicesAfter.find((d) => d.clientDeviceId === devA);
     const never = devicesAfter.find((d) => d.clientDeviceId === devB);
     expect(pushed?.lastSyncAt).toBe(afterData.lastSyncAt);

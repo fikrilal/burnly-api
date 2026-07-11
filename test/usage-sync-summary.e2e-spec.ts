@@ -189,7 +189,9 @@ describeAuthE2eSuite('Usage Summary (e2e)', (harness: AuthE2eHarness) => {
         .expect(200);
       const filteredData = getBodyData(filtered.body);
       expect(filteredData.deviceFilter).toBe(devA);
-      expect(getObjectField(getObjectField(filteredData, 'periods'), 'month').totalTokens).toBe(100);
+      expect(getObjectField(getObjectField(filteredData, 'periods'), 'month').totalTokens).toBe(
+        100,
+      );
     }
 
     await request(baseUrl)

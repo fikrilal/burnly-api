@@ -81,6 +81,29 @@ export function getObjectField(
   return field;
 }
 
+/** Object array field (e.g. data.days, data.devices) without type assertions. */
+export function getObjectArrayField(
+  value: Record<string, unknown>,
+  key: string,
+): ReadonlyArray<Record<string, unknown>> {
+  const field = value[key];
+  if (!Array.isArray(field) || field.some((item) => !isObject(item))) {
+    throw new Error(`Expected object[] field "${key}"`);
+  }
+  return field.filter(isObject);
+}
+
+export function getBodyMeta(body: unknown): Record<string, unknown> {
+  if (!isObject(body)) {
+    throw new Error('Expected response body object');
+  }
+  const meta = body.meta;
+  if (!isObject(meta)) {
+    throw new Error('Expected response body.meta object');
+  }
+  return meta;
+}
+
 export function getStringField(value: Record<string, unknown>, key: string): string {
   const field = value[key];
   if (typeof field !== 'string' || field.trim() === '') {

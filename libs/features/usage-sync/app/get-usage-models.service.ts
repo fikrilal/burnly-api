@@ -120,12 +120,7 @@ export class GetUsageModelsService {
     };
 
     const [parentTotals, models] = await Promise.all([
-      this.reads.sumParentTotals(
-        scope,
-        range.range.fromDate,
-        range.range.toDate,
-        sourceKey,
-      ),
+      this.reads.sumParentTotals(scope, range.range.fromDate, range.range.toDate, sourceKey),
       this.reads.aggregateModelsByIdentity(
         scope,
         range.range.fromDate,

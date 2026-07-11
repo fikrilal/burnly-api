@@ -173,9 +173,7 @@ export class GetUsageSummaryService {
     ]);
 
     const cost =
-      totals.factCount === 0
-        ? emptyCost(0)
-        : buildSummaryCostView(totals.factCount, costAgg);
+      totals.factCount === 0 ? emptyCost(0) : buildSummaryCostView(totals.factCount, costAgg);
 
     // Ensure zero totals still expose zero totalTokens (not missing).
     const safeTotals = totals.factCount === 0 ? emptyTotals() : totals;

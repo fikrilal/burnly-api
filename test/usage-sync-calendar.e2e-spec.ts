@@ -3,8 +3,9 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
+  getBodyMeta,
+  getObjectArrayField,
   getStringField,
-  isObject,
   uniqueEmail,
   type AuthE2eHarness,
 } from './auth/auth-e2e.harness';
@@ -113,9 +114,7 @@ describeAuthE2eSuite('Usage Calendar (e2e)', (harness: AuthE2eHarness) => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
-    const body = res.body as Record<string, unknown>;
-    expect(isObject(body.meta)).toBe(true);
-    expect((body.meta as Record<string, unknown>).dayCount).toBe(3);
+    expect(getBodyMeta(res.body).dayCount).toBe(3);
 
     const data = getBodyData(res.body);
     expect(data.from).toBe('2026-07-01');
@@ -149,7 +148,12 @@ describeAuthE2eSuite('Usage Calendar (e2e)', (harness: AuthE2eHarness) => {
       devA,
       [
         factForDate({ sourceKey: 'claude-code', date: '2026-07-02', totalTokens: 100 }),
-        factForDate({ sourceKey: 'codex', date: '2026-07-02', totalTokens: 999, recordState: 'removed' }),
+        factForDate({
+          sourceKey: 'codex',
+          date: '2026-07-02',
+          totalTokens: 999,
+          recordState: 'removed',
+        }),
         factForDate({ sourceKey: 'claude-code', date: '2026-07-03', totalTokens: 25 }),
       ],
       1,
@@ -169,7 +173,7 @@ describeAuthE2eSuite('Usage Calendar (e2e)', (harness: AuthE2eHarness) => {
       .expect(200);
 
     const data = getBodyData(res.body);
-    const days = data.days as Array<Record<string, unknown>>;
+    const days = getObjectArrayField(data, 'days');
     expect(days).toEqual([
       { date: '2026-07-01', totalTokens: 0, factCount: 0, active: false },
       { date: '2026-07-02', totalTokens: 150, factCount: 2, active: true },

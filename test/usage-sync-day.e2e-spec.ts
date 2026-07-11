@@ -3,6 +3,7 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
+  getObjectArrayField,
   getObjectField,
   getStringField,
   uniqueEmail,
@@ -187,7 +188,7 @@ describeAuthE2eSuite('Usage Day Detail (e2e)', (harness: AuthE2eHarness) => {
     expect(getObjectField(data, 'totals').totalTokens).toBe(3000);
     expect(data.facts).toHaveLength(2);
 
-    const facts = data.facts as Array<Record<string, unknown>>;
+    const facts = getObjectArrayField(data, 'facts');
     const withPartial = facts.find((f) => f.totalTokens === 2100);
     expect(withPartial).toBeDefined();
     expect(getObjectField(withPartial!, 'modelAttribution')).toMatchObject({
@@ -196,7 +197,7 @@ describeAuthE2eSuite('Usage Day Detail (e2e)', (harness: AuthE2eHarness) => {
       unattributedTokens: 100,
     });
 
-    const bySource = data.bySource as Array<Record<string, unknown>>;
+    const bySource = getObjectArrayField(data, 'bySource');
     expect(bySource).toEqual([{ sourceKey: 'claude-code', totalTokens: 3000 }]);
 
     const calendar = await request(baseUrl)
@@ -205,7 +206,7 @@ describeAuthE2eSuite('Usage Day Detail (e2e)', (harness: AuthE2eHarness) => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
     const calData = getBodyData(calendar.body);
-    const days = calData.days as Array<Record<string, unknown>>;
+    const days = getObjectArrayField(calData, 'days');
     expect(days[0]?.totalTokens).toBe(3000);
     expect(days[0]?.factCount).toBe(2);
 
@@ -241,9 +242,6 @@ describeAuthE2eSuite('Usage Day Detail (e2e)', (harness: AuthE2eHarness) => {
         expect(res.body.code).toBe('SYNC_DEVICE_NOT_FOUND');
       });
 
-    await request(baseUrl)
-      .get('/v1/usage/days/2026-07-08')
-      .query({ timezone: 'UTC' })
-      .expect(401);
+    await request(baseUrl).get('/v1/usage/days/2026-07-08').query({ timezone: 'UTC' }).expect(401);
   });
 });
