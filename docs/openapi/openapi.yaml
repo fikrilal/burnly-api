@@ -862,6 +862,30 @@ paths:
         - IDEMPOTENCY_IN_PROGRESS
         - CONFLICT
         - INTERNAL
+  /v1/sync/status:
+    get:
+      description: Returns registered sync devices for the authenticated user with
+        last successful push times. Account lastSyncAt is
+        MAX(device.lastSyncAt). Public identity is clientDeviceId (not server
+        UUID). This is not a usage totals API.
+      operationId: sync.status.get
+      parameters: []
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncStatusEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Sync status and device inventory
+      tags:
+        - Sync
+      x-error-codes:
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - INTERNAL
   /v1/usage/summary:
     get:
       description: Returns user-level parent token totals for today, the last 7
@@ -1867,6 +1891,80 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PushDailyUsageResultDto"
+      required:
+        - data
+    SyncStatusDeviceDto:
+      type: object
+      properties:
+        clientDeviceId:
+          type: string
+          example: dev_abc123
+        displayName:
+          type: string
+          nullable: true
+          example: fikri-laptop
+        platform:
+          type: string
+          enum:
+            - linux
+            - macos
+            - windows
+          example: linux
+        appVersion:
+          type: string
+          example: 0.1.20
+        reportingTimezone:
+          type: string
+          example: Asia/Jakarta
+        lastSyncAt:
+          type: string
+          nullable: true
+          example: 2026-07-15T03:55:00.000Z
+          description: Last successful daily-usage accept time, if any.
+        lastClientRevision:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 42
+          description: Last accepted push clientRevision on this device.
+        createdAt:
+          type: string
+          example: 2026-07-01T10:00:00.000Z
+        updatedAt:
+          type: string
+          example: 2026-07-15T03:55:00.000Z
+      required:
+        - clientDeviceId
+        - platform
+        - appVersion
+        - reportingTimezone
+        - createdAt
+        - updatedAt
+    SyncStatusDataDto:
+      type: object
+      properties:
+        lastSyncAt:
+          type: string
+          nullable: true
+          example: 2026-07-15T03:55:00.000Z
+          description: MAX(device.lastSyncAt) across the account, or null if never synced.
+        deviceCount:
+          type: number
+          example: 2
+        devices:
+          description: Ordered by lastSyncAt DESC NULLS LAST, then createdAt DESC.
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncStatusDeviceDto"
+      required:
+        - deviceCount
+        - devices
+    SyncStatusEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SyncStatusDataDto"
       required:
         - data
     UsageSummaryCostDto:

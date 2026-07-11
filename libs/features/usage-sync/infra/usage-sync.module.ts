@@ -6,6 +6,7 @@ import {
   provideConstructedClockedAppService,
 } from '../../../platform/di/app-service.provider';
 import { RedisModule } from '../../../platform/redis/redis.module';
+import { GetSyncStatusService } from '../app/get-sync-status.service';
 import { GetUsageCalendarService } from '../app/get-usage-calendar.service';
 import { GetUsageDayService } from '../app/get-usage-day.service';
 import { GetUsageModelsService } from '../app/get-usage-models.service';
@@ -14,6 +15,7 @@ import { PushDailyUsageService } from '../app/push-daily-usage.service';
 import { SyncDevicesService } from '../app/sync-devices.service';
 import { DailyUsageController } from './http/daily-usage.controller';
 import { SyncDevicesController } from './http/sync-devices.controller';
+import { SyncStatusController } from './http/sync-status.controller';
 import { UsageCalendarController } from './http/usage-calendar.controller';
 import { UsageDayController } from './http/usage-day.controller';
 import { UsageModelsController } from './http/usage-models.controller';
@@ -25,13 +27,14 @@ import { PrismaUsageReadRepository } from './persistence/prisma-usage-read.repos
 import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-push-rate-limiter';
 
 /**
- * Usage-sync feature: collect write path + Phase 2 usage read APIs.
+ * Usage-sync feature: collect write path + Phase 2 usage/sync read APIs.
  */
 @Module({
   imports: [PrismaModule, PlatformAuthModule, RedisModule],
   controllers: [
     SyncDevicesController,
     DailyUsageController,
+    SyncStatusController,
     UsageSummaryController,
     UsageCalendarController,
     UsageDayController,
@@ -52,6 +55,11 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
       provide: PushDailyUsageService,
       inject: [PrismaSyncDevicesRepository, PrismaDailyUsageFactsRepository],
       useClass: PushDailyUsageService,
+    }),
+    provideConstructedAppService({
+      provide: GetSyncStatusService,
+      inject: [PrismaSyncDevicesRepository],
+      useClass: GetSyncStatusService,
     }),
     provideConstructedClockedAppService({
       provide: GetUsageSummaryService,
@@ -81,6 +89,7 @@ import { RedisDailyUsagePushRateLimiter } from './rate-limit/redis-daily-usage-p
     PrismaUsageReadRepository,
     SyncDevicesService,
     PushDailyUsageService,
+    GetSyncStatusService,
     GetUsageSummaryService,
     GetUsageCalendarService,
     GetUsageDayService,
