@@ -4,6 +4,7 @@ import { PrismaService } from '../../../../platform/db/prisma.service';
 import { rawModelIdFromIdentityKey } from '../../app/model-identity';
 import type {
   AggregatedModelRow,
+  ParentCostAggregateResult,
   ParentTotalsByDateRow,
   ParentTotalsResult,
   UsageReadModelFact,
@@ -163,6 +164,62 @@ export class PrismaUsageReadRepository implements UsageReadRepository {
       outputTokens: result._sum.outputTokens,
       cacheCreationTokens: result._sum.cacheCreationTokens,
       cacheReadTokens: result._sum.cacheReadTokens,
+    };
+  }
+
+  async sumParentCost(
+    scope: UsageReadScope,
+    fromDate: Date,
+    toDate: Date,
+    sourceKey?: string,
+  ): Promise<ParentCostAggregateResult> {
+    const client = this.prisma.getClient();
+    const where: Prisma.DailyUsageFactWhereInput = {
+      ...parentWhere(scope, fromDate, toDate, sourceKey),
+      costStatus: { in: ['available', 'estimated'] },
+      costAmountMicros: { not: null },
+      costCurrency: { not: null },
+    };
+
+    const groups = await client.dailyUsageFact.groupBy({
+      by: ['costCurrency', 'costStatus'],
+      where,
+      _sum: { costAmountMicros: true },
+      _count: { _all: true },
+    });
+
+    type Acc = {
+      currency: string;
+      amountMicros: bigint;
+      factCount: number;
+      hasAvailable: boolean;
+      hasEstimated: boolean;
+    };
+    const byCurrency = new Map<string, Acc>();
+    let factsWithCost = 0;
+
+    for (const group of groups) {
+      const currency = group.costCurrency;
+      if (currency === null) continue;
+
+      factsWithCost += group._count._all;
+      const existing = byCurrency.get(currency) ?? {
+        currency,
+        amountMicros: 0n,
+        factCount: 0,
+        hasAvailable: false,
+        hasEstimated: false,
+      };
+      existing.amountMicros += group._sum.costAmountMicros ?? 0n;
+      existing.factCount += group._count._all;
+      if (group.costStatus === 'available') existing.hasAvailable = true;
+      if (group.costStatus === 'estimated') existing.hasEstimated = true;
+      byCurrency.set(currency, existing);
+    }
+
+    return {
+      factsWithCost,
+      currencies: [...byCurrency.values()],
     };
   }
 

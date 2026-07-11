@@ -862,6 +862,48 @@ paths:
         - IDEMPOTENCY_IN_PROGRESS
         - CONFLICT
         - INTERNAL
+  /v1/usage/summary:
+    get:
+      description: Returns user-level parent token totals for today, the last 7
+        calendar days (including today), and the current calendar month in the
+        given IANA timezone. Sums active DailyUsageFact rows across devices by
+        default. Optional deviceId filters to one clientDeviceId. Parent
+        totalTokens are authoritative; model children are not used.
+      operationId: usage.summary.get
+      parameters:
+        - name: timezone
+          required: true
+          in: query
+          description: IANA timezone. Defines today/week/month boundaries and filters fact
+            aggregationTimezone (exact match).
+          schema:
+            example: Asia/Jakarta
+            type: string
+        - name: deviceId
+          required: false
+          in: query
+          description: Optional desktop clientDeviceId filter (not server UUID).
+          schema:
+            example: dev_abc123
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageSummaryEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Usage summary for today / week / month
+      tags:
+        - Usage
+      x-error-codes:
+        - VALIDATION_FAILED
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - SYNC_DEVICE_NOT_FOUND
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -876,6 +918,8 @@ tags:
     description: User profile endpoints.
   - name: Sync
     description: "Desktop collect: device registration and usage push."
+  - name: Usage
+    description: Authenticated usage read APIs for web reports.
 servers:
   - url: /
 components:
@@ -1658,5 +1702,132 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/PushDailyUsageResultDto"
+      required:
+        - data
+    UsageSummaryCostDto:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - available
+            - estimated
+            - partial
+            - mixed
+            - unavailable
+          example: partial
+        amountMicros:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 123456
+          description: Sum of costAmountMicros for cost-bearing facts; null when
+            mixed/unavailable.
+        currency:
+          type: string
+          nullable: true
+          example: USD
+        factsWithCost:
+          type: number
+          example: 3
+        factsTotal:
+          type: number
+          example: 5
+      required:
+        - status
+        - factsWithCost
+        - factsTotal
+    UsageSummaryPeriodDto:
+      type: object
+      properties:
+        startDate:
+          type: string
+          example: 2026-07-15
+        endDate:
+          type: string
+          example: 2026-07-15
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 12345
+          description: Sum of parent totalTokens (authoritative).
+        inputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 8000
+        outputTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 4000
+        cacheCreationTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: null
+        cacheReadTokens:
+          oneOf:
+            - type: number
+            - type: string
+          nullable: true
+          example: 345
+        cost:
+          $ref: "#/components/schemas/UsageSummaryCostDto"
+      required:
+        - startDate
+        - endDate
+        - totalTokens
+        - cost
+    UsageSummaryPeriodsDto:
+      type: object
+      properties:
+        today:
+          $ref: "#/components/schemas/UsageSummaryPeriodDto"
+        week:
+          description: Last 7 calendar days including today (not ISO week).
+          allOf:
+            - $ref: "#/components/schemas/UsageSummaryPeriodDto"
+        month:
+          $ref: "#/components/schemas/UsageSummaryPeriodDto"
+      required:
+        - today
+        - week
+        - month
+    UsageSummaryDataDto:
+      type: object
+      properties:
+        timezone:
+          type: string
+          example: Asia/Jakarta
+        asOf:
+          type: string
+          example: 2026-07-15T04:00:00.000Z
+        periods:
+          $ref: "#/components/schemas/UsageSummaryPeriodsDto"
+        deviceFilter:
+          type: string
+          nullable: true
+          example: null
+          description: Echo of deviceId query filter when set.
+        lastSyncAt:
+          type: string
+          nullable: true
+          example: 2026-07-15T03:55:00.000Z
+          description: MAX(SyncDevice.lastSyncAt) for the user (or filtered device).
+      required:
+        - timezone
+        - asOf
+        - periods
+    UsageSummaryEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UsageSummaryDataDto"
       required:
         - data

@@ -95,6 +95,20 @@ export type AggregatedModelRow = Readonly<{
   cacheReadTokens: bigint | null;
 }>;
 
+/** Cost-bearing parent facts only (available | estimated with amount+currency). */
+export type ParentCostCurrencyBucket = Readonly<{
+  currency: string;
+  amountMicros: bigint;
+  factCount: number;
+  hasAvailable: boolean;
+  hasEstimated: boolean;
+}>;
+
+export type ParentCostAggregateResult = Readonly<{
+  factsWithCost: number;
+  currencies: readonly ParentCostCurrencyBucket[];
+}>;
+
 /**
  * Read-only queries for Phase 2 usage/sync reporting.
  * All fact queries default to recordState = active.
@@ -106,6 +120,17 @@ export interface UsageReadRepository {
     toDate: Date,
     sourceKey?: string,
   ): Promise<ParentTotalsResult>;
+
+  /**
+   * Aggregate cost for active parents with costStatus available|estimated
+   * and non-null amount+currency.
+   */
+  sumParentCost(
+    scope: UsageReadScope,
+    fromDate: Date,
+    toDate: Date,
+    sourceKey?: string,
+  ): Promise<ParentCostAggregateResult>;
 
   groupParentTotalsByDate(
     scope: UsageReadScope,
