@@ -1,4 +1,4 @@
-import type { UpdateMeProfilePatch, UserRecord } from '../users.types';
+import type { UpdateMePatch, UserRecord } from '../users.types';
 
 export type RequestAccountDeletionResult =
   | Readonly<{ kind: 'ok'; user: UserRecord }>
@@ -12,7 +12,7 @@ export type CancelAccountDeletionResult =
 
 export interface UsersRepository {
   findById(userId: string): Promise<UserRecord | null>;
-  updateProfile(userId: string, patch: UpdateMeProfilePatch): Promise<UserRecord | null>;
+  updateMe(userId: string, patch: UpdateMePatch): Promise<UserRecord | null>;
 
   requestAccountDeletion(input: {
     userId: string;

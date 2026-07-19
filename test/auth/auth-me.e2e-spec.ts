@@ -115,6 +115,7 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       roles: ['USER'],
       authMethods: ['PASSWORD'],
       profile: { profileImageFileId: null, displayName: null, givenName: null, familyName: null },
+      leaderboard: { optIn: false, optedInAt: null },
     });
   });
 

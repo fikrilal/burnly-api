@@ -10,7 +10,8 @@ import {
 } from '@prisma/client';
 import type { UsersRepository } from '../../app/ports/users.repository';
 import type {
-  UpdateMeProfilePatch,
+  LeaderboardSettingsRecord,
+  UpdateMePatch,
   UserProfileRecord,
   UserRecord,
   UserStatus,
@@ -27,7 +28,12 @@ type PrismaUserWithProfile = Pick<
 > & {
   profile: Pick<
     UserProfile,
-    'profileImageFileId' | 'displayName' | 'givenName' | 'familyName'
+    | 'profileImageFileId'
+    | 'displayName'
+    | 'givenName'
+    | 'familyName'
+    | 'leaderboardOptIn'
+    | 'leaderboardOptedInAt'
   > | null;
   passwordCredential: Pick<PasswordCredential, 'userId'> | null;
   externalIdentities: Array<Pick<ExternalIdentity, 'provider'>>;
@@ -46,6 +52,8 @@ const USER_WITH_PROFILE_SELECT = {
       displayName: true,
       givenName: true,
       familyName: true,
+      leaderboardOptIn: true,
+      leaderboardOptedInAt: true,
     },
   },
   passwordCredential: { select: { userId: true } },
@@ -59,6 +67,16 @@ function toProfileRecord(profile: PrismaUserWithProfile['profile']): UserProfile
     displayName: profile.displayName,
     givenName: profile.givenName,
     familyName: profile.familyName,
+  };
+}
+
+function toLeaderboardRecord(profile: PrismaUserWithProfile['profile']): LeaderboardSettingsRecord {
+  if (!profile) {
+    return { optIn: false, optedInAt: null };
+  }
+  return {
+    optIn: profile.leaderboardOptIn,
+    optedInAt: profile.leaderboardOptedInAt,
   };
 }
 
@@ -96,6 +114,7 @@ function toUserRecord(user: PrismaUserWithProfile): UserRecord {
     deletionScheduledFor: user.deletionScheduledFor,
     authMethods: toAuthMethods(user),
     profile: toProfileRecord(user.profile),
+    leaderboard: toLeaderboardRecord(user.profile),
   };
 }
 
@@ -117,22 +136,36 @@ export class PrismaUsersRepository implements UsersRepository {
     return toUserRecord(user);
   }
 
-  async updateProfile(userId: string, patch: UpdateMeProfilePatch): Promise<UserRecord | null> {
+  async updateMe(userId: string, patch: UpdateMePatch): Promise<UserRecord | null> {
     const client = this.prisma.getClient();
+    const now = this.clock.now();
 
     const profileData: {
       displayName?: string | null;
       givenName?: string | null;
       familyName?: string | null;
+      leaderboardOptIn?: boolean;
+      leaderboardOptedInAt?: Date | null;
     } = {};
 
-    if (patch.displayName !== undefined) profileData.displayName = patch.displayName;
-    if (patch.givenName !== undefined) profileData.givenName = patch.givenName;
-    if (patch.familyName !== undefined) profileData.familyName = patch.familyName;
+    if (patch.profile) {
+      if (patch.profile.displayName !== undefined) {
+        profileData.displayName = patch.profile.displayName;
+      }
+      if (patch.profile.givenName !== undefined) {
+        profileData.givenName = patch.profile.givenName;
+      }
+      if (patch.profile.familyName !== undefined) {
+        profileData.familyName = patch.profile.familyName;
+      }
+    }
+
+    if (patch.leaderboard) {
+      profileData.leaderboardOptIn = patch.leaderboard.optIn;
+      profileData.leaderboardOptedInAt = patch.leaderboard.optIn ? now : null;
+    }
 
     return await client.$transaction(async (tx) => {
-      const now = this.clock.now();
-
       const locked = await tx.user.updateMany({
         where: { id: userId, status: { not: PrismaUserStatus.DELETED } },
         data: { updatedAt: now },

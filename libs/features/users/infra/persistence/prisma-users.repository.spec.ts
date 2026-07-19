@@ -19,6 +19,8 @@ function createPrismaStub(params: {
       displayName: string | null;
       givenName: string | null;
       familyName: string | null;
+      leaderboardOptIn: boolean;
+      leaderboardOptedInAt: Date | null;
     }> | null;
     passwordCredential: Readonly<{ userId: string }> | null;
     externalIdentities: Array<Readonly<{ provider: string }>>;
@@ -63,14 +65,14 @@ function createPrismaStub(params: {
   return { prisma, userUpdateManyCalls, profileUpsertCalls, userFindUniqueCalls };
 }
 
-describe('PrismaUsersRepository.updateProfile (unit)', () => {
+describe('PrismaUsersRepository.updateMe (unit)', () => {
   it('returns null and does not upsert when the user is deleted (or missing)', async () => {
     const { prisma, userUpdateManyCalls, profileUpsertCalls, userFindUniqueCalls } =
       createPrismaStub({ lockCount: 0, userRow: null });
     const clock = { now: () => new Date('2026-01-01T00:00:00.000Z') } satisfies Clock;
     const repo = new PrismaUsersRepository(prisma, clock);
 
-    const res = await repo.updateProfile('user-1', { displayName: 'Dante' });
+    const res = await repo.updateMe('user-1', { profile: { displayName: 'Dante' } });
 
     expect(res).toBeNull();
     expect(userUpdateManyCalls).toEqual([
@@ -99,6 +101,8 @@ describe('PrismaUsersRepository.updateProfile (unit)', () => {
             displayName: 'Dante',
             givenName: null,
             familyName: null,
+            leaderboardOptIn: false,
+            leaderboardOptedInAt: null,
           },
           passwordCredential: null,
           externalIdentities: [],
@@ -107,7 +111,7 @@ describe('PrismaUsersRepository.updateProfile (unit)', () => {
     const clock = { now: () => new Date('2026-01-01T00:00:00.000Z') } satisfies Clock;
     const repo = new PrismaUsersRepository(prisma, clock);
 
-    const res = await repo.updateProfile('user-1', { displayName: 'Dante' });
+    const res = await repo.updateMe('user-1', { profile: { displayName: 'Dante' } });
 
     expect(userUpdateManyCalls).toHaveLength(1);
     expect(profileUpsertCalls).toEqual([
@@ -132,6 +136,52 @@ describe('PrismaUsersRepository.updateProfile (unit)', () => {
         givenName: null,
         familyName: null,
       },
+      leaderboard: { optIn: false, optedInAt: null },
     });
+  });
+
+  it('sets leaderboardOptIn and optedInAt when opting in', async () => {
+    const now = new Date('2026-07-23T08:00:00.000Z');
+    const { prisma, profileUpsertCalls } = createPrismaStub({
+      lockCount: 1,
+      userRow: {
+        id: 'user-1',
+        email: 'user@example.com',
+        emailVerifiedAt: null,
+        status: PrismaUserStatus.ACTIVE,
+        deletionRequestedAt: null,
+        deletionScheduledFor: null,
+        profile: {
+          profileImageFileId: null,
+          displayName: null,
+          givenName: null,
+          familyName: null,
+          leaderboardOptIn: true,
+          leaderboardOptedInAt: now,
+        },
+        passwordCredential: null,
+        externalIdentities: [],
+      },
+    });
+    const clock = { now: () => now } satisfies Clock;
+    const repo = new PrismaUsersRepository(prisma, clock);
+
+    const res = await repo.updateMe('user-1', { leaderboard: { optIn: true } });
+
+    expect(profileUpsertCalls).toEqual([
+      {
+        where: { userId: 'user-1' },
+        create: {
+          userId: 'user-1',
+          leaderboardOptIn: true,
+          leaderboardOptedInAt: now,
+        },
+        update: {
+          leaderboardOptIn: true,
+          leaderboardOptedInAt: now,
+        },
+      },
+    ]);
+    expect(res?.leaderboard).toEqual({ optIn: true, optedInAt: now });
   });
 });

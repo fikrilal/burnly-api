@@ -2,7 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
-  IsDefined,
+  IsBoolean,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -53,6 +53,29 @@ function AtLeastOneDefined(fields: ReadonlyArray<string>, validationOptions?: Va
   };
 }
 
+function AtLeastOneOfRoot(fields: ReadonlyArray<string>, validationOptions?: ValidationOptions) {
+  return (target: object) => {
+    registerDecorator({
+      name: 'atLeastOneOfRoot',
+      target: target.constructor,
+      propertyName: fields[0] ?? 'body',
+      constraints: [fields],
+      options: validationOptions,
+      validator: {
+        validate(_value: unknown, args: ValidationArguments): boolean {
+          const keys = getConstraintFields(args);
+          const obj = isRecord(args.object) ? args.object : {};
+          return keys.some((k) => obj[k] !== undefined);
+        },
+        defaultMessage(args: ValidationArguments): string {
+          const keys = getConstraintFields(args);
+          return `At least one of ${keys.join(', ')} must be provided`;
+        },
+      },
+    });
+  };
+}
+
 export class MeProfileDto {
   @ApiPropertyOptional({
     type: String,
@@ -79,6 +102,24 @@ export class MeProfileDto {
   @IsOptional()
   @IsString()
   familyName!: string | null;
+}
+
+export class MeLeaderboardDto {
+  @ApiProperty({
+    example: false,
+    description:
+      'When true, aggregated token totals and public profile fields may appear on the public leaderboard (ADR 0023). Default false.',
+  })
+  optIn!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: '2026-07-23T12:00:00.000Z',
+    nullable: true,
+    format: 'date-time',
+    description: 'When the user last opted in; null when opted out or never opted in.',
+  })
+  optedInAt!: string | null;
 }
 
 export class AccountDeletionDto {
@@ -121,6 +162,9 @@ export class MeDto {
 
   @ApiProperty({ type: MeProfileDto })
   profile!: MeProfileDto;
+
+  @ApiProperty({ type: MeLeaderboardDto })
+  leaderboard!: MeLeaderboardDto;
 
   @ApiPropertyOptional({
     type: AccountDeletionDto,
@@ -180,14 +224,33 @@ export class PatchMeProfileDto {
   familyName?: string | null;
 }
 
+export class PatchMeLeaderboardDto {
+  @ApiProperty({
+    example: true,
+    description: 'Set true to appear on the public leaderboard; false removes immediately.',
+  })
+  @IsBoolean()
+  optIn!: boolean;
+}
+
+@AtLeastOneOfRoot(['profile', 'leaderboard'], {
+  message: 'At least one of profile, leaderboard must be provided',
+})
 export class PatchMeRequestDto {
-  @ApiProperty({ type: PatchMeProfileDto })
-  @IsDefined()
+  @ApiPropertyOptional({ type: PatchMeProfileDto })
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => PatchMeProfileDto)
   @AtLeastOneDefined(['displayName', 'givenName', 'familyName'], {
     message: 'At least one profile field must be provided',
   })
-  profile!: PatchMeProfileDto;
+  profile?: PatchMeProfileDto;
+
+  @ApiPropertyOptional({ type: PatchMeLeaderboardDto })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => PatchMeLeaderboardDto)
+  leaderboard?: PatchMeLeaderboardDto;
 }

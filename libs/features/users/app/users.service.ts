@@ -2,11 +2,29 @@ import type { UsersRepository } from './ports/users.repository';
 import type { AccountDeletionScheduler } from './ports/account-deletion.scheduler';
 import { UserNotFoundError } from './users.errors';
 import { CONSUMER_USER_ROLES } from '../../../shared/auth/user-roles';
-import type { MeView } from './users.types';
-import type { UpdateMeProfilePatch, UserProfileRecord, UserRecord } from './users.types';
+import type {
+  LeaderboardSettingsRecord,
+  LeaderboardSettingsView,
+  MeView,
+  UpdateMePatch,
+  UserProfileRecord,
+  UserRecord,
+} from './users.types';
 import { addDays, type Clock } from './time';
 
 const ACCOUNT_DELETION_GRACE_PERIOD_DAYS = 30;
+
+const EMPTY_PROFILE: UserProfileRecord = {
+  profileImageFileId: null,
+  displayName: null,
+  givenName: null,
+  familyName: null,
+};
+
+const DEFAULT_LEADERBOARD: LeaderboardSettingsRecord = {
+  optIn: false,
+  optedInAt: null,
+};
 
 export class UsersService {
   constructor(
@@ -25,14 +43,22 @@ export class UsersService {
     return this.toMeView(user);
   }
 
-  async updateMeProfile(userId: string, patch: UpdateMeProfilePatch): Promise<MeView> {
-    const user = await this.users.updateProfile(userId, patch);
+  async updateMe(userId: string, patch: UpdateMePatch): Promise<MeView> {
+    const user = await this.users.updateMe(userId, patch);
     if (!user) {
       throw new UserNotFoundError();
     }
     this.assertUserNotDeleted(user);
 
     return this.toMeView(user);
+  }
+
+  /** @deprecated Prefer updateMe; kept for call sites that only patch profile. */
+  async updateMeProfile(
+    userId: string,
+    patch: NonNullable<UpdateMePatch['profile']>,
+  ): Promise<MeView> {
+    return this.updateMe(userId, { profile: patch });
   }
 
   async requestAccountDeletion(input: {
@@ -91,13 +117,16 @@ export class UsersService {
     }
   }
 
-  private toMeView(user: UserRecord): MeView {
-    const profile: UserProfileRecord = user.profile ?? {
-      profileImageFileId: null,
-      displayName: null,
-      givenName: null,
-      familyName: null,
+  private toLeaderboardView(leaderboard: LeaderboardSettingsRecord): LeaderboardSettingsView {
+    return {
+      optIn: leaderboard.optIn,
+      optedInAt: leaderboard.optedInAt ? leaderboard.optedInAt.toISOString() : null,
     };
+  }
+
+  private toMeView(user: UserRecord): MeView {
+    const profile: UserProfileRecord = user.profile ?? EMPTY_PROFILE;
+    const leaderboard = user.leaderboard ?? DEFAULT_LEADERBOARD;
 
     const accountDeletion =
       user.deletionRequestedAt && user.deletionScheduledFor
@@ -114,6 +143,7 @@ export class UsersService {
       roles: [...CONSUMER_USER_ROLES],
       authMethods: [...user.authMethods],
       profile,
+      leaderboard: this.toLeaderboardView(leaderboard),
       accountDeletion,
     };
   }
