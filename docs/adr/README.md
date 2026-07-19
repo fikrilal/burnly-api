@@ -32,4 +32,5 @@ Rules:
 - `docs/adr/0020-daily-usage-cloud-projection.md`
 - `docs/adr/0021-usage-sync-identity-and-devices.md`
 - `docs/adr/0022-desktop-auth-web-handoff.md`
+- `docs/adr/0023-public-leaderboard-opt-in.md`
 - `docs/adr/template.md`

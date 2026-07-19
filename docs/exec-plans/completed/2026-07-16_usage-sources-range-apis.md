@@ -81,10 +81,10 @@ npm run test:e2e -- --testPathPatterns='usage-sync-sources'
 
 Shipped tool-centric range APIs:
 
-| Method | Path | operationId |
-| ------ | ---- | ----------- |
-| GET | `/v1/usage/sources` | `usage.sources.list` |
-| GET | `/v1/usage/sources/{sourceKey}/models` | `usage.sources.models.list` |
+| Method | Path                                   | operationId                 |
+| ------ | -------------------------------------- | --------------------------- |
+| GET    | `/v1/usage/sources`                    | `usage.sources.list`        |
+| GET    | `/v1/usage/sources/{sourceKey}/models` | `usage.sources.models.list` |
 
 Key files: `get-usage-sources.service.ts`, `get-usage-source-models.service.ts`, `usage-sources.controller.ts`, `groupParentTotalsBySource` in Prisma read repo.
 
