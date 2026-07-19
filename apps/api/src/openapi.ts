@@ -22,6 +22,10 @@ export function buildOpenApiDocument(app: NestFastifyApplication): OpenAPIObject
     .addTag('Users', 'User profile endpoints.')
     .addTag('Sync', 'Desktop collect: device registration and usage push.')
     .addTag('Usage', 'Authenticated usage read APIs for web reports.')
+    .addTag(
+      'Leaderboard',
+      'Public global leaderboard (opt-in participation; token metric; ADR 0023).',
+    )
     .build();
 
   return SwaggerModule.createDocument(app, config, {
