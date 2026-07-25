@@ -89,6 +89,22 @@ export class LeaderboardEntryDto {
   })
   avatarUrl!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'https://github.com/username',
+    description: 'Public GitHub URL when provided by the user.',
+  })
+  githubUrl!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'https://example.com',
+    description: 'Public website URL when provided by the user.',
+  })
+  websiteUrl!: string | null;
+
   @ApiProperty({
     oneOf: [{ type: 'number' }, { type: 'string' }],
     example: 128400000,

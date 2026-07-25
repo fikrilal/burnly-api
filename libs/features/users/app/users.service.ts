@@ -19,6 +19,8 @@ const EMPTY_PROFILE: UserProfileRecord = {
   displayName: null,
   givenName: null,
   familyName: null,
+  githubUrl: null,
+  websiteUrl: null,
 };
 
 const DEFAULT_LEADERBOARD: LeaderboardSettingsRecord = {

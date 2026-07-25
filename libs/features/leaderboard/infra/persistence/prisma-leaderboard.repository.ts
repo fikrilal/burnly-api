@@ -22,6 +22,8 @@ type ProfileRaw = Readonly<{
   displayName: string | null;
   givenName: string | null;
   familyName: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
   leaderboardOptIn: boolean;
 }>;
 
@@ -169,6 +171,8 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         displayName: true,
         givenName: true,
         familyName: true,
+        githubUrl: true,
+        websiteUrl: true,
         leaderboardOptIn: true,
       },
     });
@@ -179,6 +183,8 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         displayName: r.displayName,
         givenName: r.givenName,
         familyName: r.familyName,
+        githubUrl: r.githubUrl,
+        websiteUrl: r.websiteUrl,
         leaderboardOptIn: r.leaderboardOptIn,
       }),
     );

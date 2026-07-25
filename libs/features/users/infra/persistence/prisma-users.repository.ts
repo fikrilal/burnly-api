@@ -32,6 +32,8 @@ type PrismaUserWithProfile = Pick<
     | 'displayName'
     | 'givenName'
     | 'familyName'
+    | 'githubUrl'
+    | 'websiteUrl'
     | 'leaderboardOptIn'
     | 'leaderboardOptedInAt'
   > | null;
@@ -52,6 +54,8 @@ const USER_WITH_PROFILE_SELECT = {
       displayName: true,
       givenName: true,
       familyName: true,
+      githubUrl: true,
+      websiteUrl: true,
       leaderboardOptIn: true,
       leaderboardOptedInAt: true,
     },
@@ -67,6 +71,8 @@ function toProfileRecord(profile: PrismaUserWithProfile['profile']): UserProfile
     displayName: profile.displayName,
     givenName: profile.givenName,
     familyName: profile.familyName,
+    githubUrl: profile.githubUrl,
+    websiteUrl: profile.websiteUrl,
   };
 }
 
@@ -144,6 +150,8 @@ export class PrismaUsersRepository implements UsersRepository {
       displayName?: string | null;
       givenName?: string | null;
       familyName?: string | null;
+      githubUrl?: string | null;
+      websiteUrl?: string | null;
       leaderboardOptIn?: boolean;
       leaderboardOptedInAt?: Date | null;
     } = {};
@@ -157,6 +165,12 @@ export class PrismaUsersRepository implements UsersRepository {
       }
       if (patch.profile.familyName !== undefined) {
         profileData.familyName = patch.profile.familyName;
+      }
+      if (patch.profile.githubUrl !== undefined) {
+        profileData.githubUrl = patch.profile.githubUrl;
+      }
+      if (patch.profile.websiteUrl !== undefined) {
+        profileData.websiteUrl = patch.profile.websiteUrl;
       }
     }
 

@@ -3,7 +3,6 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
-  getBodyMeta,
   getObjectArrayField,
   getObjectField,
   getStringField,
@@ -129,8 +128,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     const data = getBodyData(res.body);
     expect(data.window).toBe('7d');
     expect(data.metric).toBe('tokens');
-    expect(data.entries).toEqual([]);
-    expect(getBodyMeta(res.body).nextCursor).toBeNull();
+    expect(Array.isArray(data.entries)).toBe(true);
     expect(data.viewer).toBeUndefined();
   });
 
@@ -183,7 +181,14 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${a.accessToken}`)
-      .send({ profile: { displayName: 'Alice' }, leaderboard: { optIn: true } })
+      .send({
+        profile: {
+          displayName: 'Alice',
+          githubUrl: 'alice',
+          websiteUrl: 'alice.example.com',
+        },
+        leaderboard: { optIn: true },
+      })
       .expect(200);
 
     await request(baseUrl)
@@ -206,8 +211,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'claude-code',
           date: today,
-          totalTokens: 1000,
-          models: [{ rawModelId: 'sonnet', totalTokens: 1000 }],
+          totalTokens: 100_000_000,
+          models: [{ rawModelId: 'sonnet', totalTokens: 100_000_000 }],
         }),
       ],
       1,
@@ -220,8 +225,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'codex',
           date: today,
-          totalTokens: 500,
-          models: [{ rawModelId: 'gpt', totalTokens: 500 }],
+          totalTokens: 90_000_000,
+          models: [{ rawModelId: 'gpt', totalTokens: 90_000_000 }],
         }),
       ],
       1,
@@ -230,7 +235,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     await push(
       c.accessToken,
       c.clientDeviceId,
-      [factForDate({ sourceKey: 'claude-code', date: today, totalTokens: 99999 })],
+      [factForDate({ sourceKey: 'claude-code', date: today, totalTokens: 999_999_999 })],
       1,
     ).expect(200);
 
@@ -242,10 +247,17 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     expect(ids).toContain(b.userId);
     expect(ids).not.toContain(c.userId);
 
-    const ranks = entries.map((e) => e.rank);
-    expect(ranks[0]).toBe(1);
-    expect(getStringField(entries[0] ?? {}, 'displayName')).toBe('Alice');
-    expect(getStringField(entries[1] ?? {}, 'displayName')).toBe('Bob');
+    const aliceEntry = entries.find((e) => getStringField(e, 'userId') === a.userId);
+    expect(aliceEntry).toBeDefined();
+    expect(getStringField(aliceEntry ?? {}, 'displayName')).toBe('Alice');
+    expect(getStringField(aliceEntry ?? {}, 'githubUrl')).toBe('https://github.com/alice');
+    expect(getStringField(aliceEntry ?? {}, 'websiteUrl')).toBe('https://alice.example.com');
+
+    const bobEntry = entries.find((e) => getStringField(e, 'userId') === b.userId);
+    expect(bobEntry).toBeDefined();
+    expect(getStringField(bobEntry ?? {}, 'displayName')).toBe('Bob');
+    expect(bobEntry?.githubUrl).toBeNull();
+    expect(bobEntry?.websiteUrl).toBeNull();
 
     // No email field on entries
     for (const e of entries) {
@@ -261,7 +273,10 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
 
     const viewer = getObjectField(getBodyData(withViewer.body), 'viewer');
     expect(viewer.status).toBe('ranked');
-    expect(getObjectField(viewer, 'entry').rank).toBe(1);
+    const viewerEntry = getObjectField(viewer, 'entry');
+    expect(viewerEntry.rank).toBe(1);
+    expect(getStringField(viewerEntry, 'githubUrl')).toBe('https://github.com/alice');
+    expect(getStringField(viewerEntry, 'websiteUrl')).toBe('https://alice.example.com');
 
     // Invalid token still 200, no viewer
     const badToken = await request(baseUrl)

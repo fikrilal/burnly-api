@@ -1339,6 +1339,16 @@ components:
           type: string
           example: Alighieri
           nullable: true
+        githubUrl:
+          type: string
+          example: https://github.com/dante
+          nullable: true
+          maxLength: 255
+        websiteUrl:
+          type: string
+          example: https://dante.example.com
+          nullable: true
+          maxLength: 255
     MeLeaderboardDto:
       type: object
       properties:
@@ -1807,6 +1817,16 @@ components:
           nullable: true
           minLength: 1
           maxLength: 100
+        githubUrl:
+          type: string
+          example: https://github.com/dante
+          nullable: true
+          maxLength: 255
+        websiteUrl:
+          type: string
+          example: https://dante.example.com
+          nullable: true
+          maxLength: 255
     PatchMeLeaderboardDto:
       type: object
       properties:
@@ -3070,6 +3090,16 @@ components:
           type: string
           nullable: true
           description: Public avatar URL when available; null in v1 (auth-only images).
+        githubUrl:
+          type: string
+          nullable: true
+          example: https://github.com/username
+          description: Public GitHub URL when provided by the user.
+        websiteUrl:
+          type: string
+          nullable: true
+          example: https://example.com
+          description: Public website URL when provided by the user.
         totalTokens:
           oneOf:
             - type: number

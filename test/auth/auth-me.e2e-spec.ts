@@ -114,7 +114,14 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       emailVerified: false,
       roles: ['USER'],
       authMethods: ['PASSWORD'],
-      profile: { profileImageFileId: null, displayName: null, givenName: null, familyName: null },
+      profile: {
+        profileImageFileId: null,
+        displayName: null,
+        givenName: null,
+        familyName: null,
+        githubUrl: null,
+        websiteUrl: null,
+      },
       leaderboard: { optIn: false, optedInAt: null },
     });
   });
@@ -554,6 +561,63 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       displayName: 'Dante',
       givenName: 'Dante',
       familyName: 'Alighieri',
+      githubUrl: null,
+      websiteUrl: null,
+    });
+  });
+
+  it('register -> PATCH /v1/me normalizes githubUrl and websiteUrl and validates invalid URLs', async () => {
+    const email = uniqueEmail('auth');
+    const password = 'correct-horse-battery-staple';
+
+    const registerRes = await request(baseUrl)
+      .post('/v1/auth/password/register')
+      .send({ email, password })
+      .expect(200);
+
+    const reg = getAuthResponse(registerRes.body);
+
+    const patchRes = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({
+        profile: {
+          githubUrl: ' @dante-alighieri ',
+          websiteUrl: ' dante.example.com ',
+        },
+      })
+      .expect(200);
+
+    expect(patchRes.body.data.profile).toMatchObject({
+      githubUrl: 'https://github.com/dante-alighieri',
+      websiteUrl: 'https://dante.example.com',
+    });
+
+    const badWebsite = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { websiteUrl: 'javascript:alert(1)' } })
+      .expect(400);
+
+    expect(badWebsite.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    const badGithub = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { githubUrl: 'invalid/username/extra' } })
+      .expect(400);
+
+    expect(badGithub.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    const unsets = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { githubUrl: '', websiteUrl: null } })
+      .expect(200);
+
+    expect(unsets.body.data.profile).toMatchObject({
+      githubUrl: null,
+      websiteUrl: null,
     });
   });
 
@@ -627,6 +691,8 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       displayName: null,
       givenName: null,
       familyName: null,
+      githubUrl: null,
+      websiteUrl: null,
     });
   });
 

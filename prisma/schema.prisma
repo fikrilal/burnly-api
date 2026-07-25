@@ -122,6 +122,9 @@ model UserProfile {
   givenName   String?
   familyName  String?
 
+  githubUrl  String? @db.VarChar(255)
+  websiteUrl String? @db.VarChar(255)
+
   /// Public leaderboard participation (ADR 0023). Default off; separate from usage sync.
   leaderboardOptIn     Boolean   @default(false)
   leaderboardOptedInAt DateTime?

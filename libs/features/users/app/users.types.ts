@@ -7,6 +7,8 @@ export type UserProfileRecord = Readonly<{
   displayName: string | null;
   givenName: string | null;
   familyName: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
 }>;
 
 export type LeaderboardSettingsRecord = Readonly<{
@@ -23,6 +25,8 @@ export type UpdateMeProfilePatch = Readonly<{
   displayName?: string | null;
   givenName?: string | null;
   familyName?: string | null;
+  githubUrl?: string | null;
+  websiteUrl?: string | null;
 }>;
 
 export type UpdateMeLeaderboardPatch = Readonly<{

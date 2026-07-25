@@ -85,6 +85,8 @@ describe('UsersService', () => {
         displayName: null,
         givenName: null,
         familyName: null,
+        githubUrl: null,
+        websiteUrl: null,
       },
       leaderboard: { optIn: false, optedInAt: null },
       accountDeletion: null,
