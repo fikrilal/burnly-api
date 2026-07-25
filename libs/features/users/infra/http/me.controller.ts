@@ -8,6 +8,7 @@ import { ErrorCode } from '../../../../platform/http/errors/error-codes';
 import { Idempotent } from '../../../../platform/http/idempotency/idempotency.decorator';
 import { ApiIdempotencyKeyHeader } from '../../../../platform/http/openapi/api-idempotency-key.decorator';
 import { ApiErrorCodes } from '../../../../platform/http/openapi/api-error-codes.decorator';
+import type { UpdateMePatch } from '../../app/users.types';
 import { MeEnvelopeDto, PatchMeRequestDto } from './dtos/me.dto';
 import { UsersErrorFilter } from './users-error.filter';
 
@@ -23,7 +24,8 @@ export class MeController {
   @ApiOperation({
     operationId: 'users.me.get',
     summary: 'Get current user',
-    description: 'Returns the authenticated user profile.',
+    description:
+      'Returns the authenticated user profile, including leaderboard opt-in settings (default off).',
   })
   @ApiErrorCodes([ErrorCode.UNAUTHORIZED, ErrorCode.INTERNAL])
   @ApiOkResponse({ type: MeEnvelopeDto })
@@ -36,9 +38,11 @@ export class MeController {
   @ApiBearerAuth('access-token')
   @ApiOperation({
     operationId: 'users.me.patch',
-    summary: 'Update current user profile',
+    summary: 'Update current user profile and/or leaderboard settings',
     description:
-      'Partially updates the authenticated user profile. Omitted fields are unchanged; null clears a field.',
+      'Partially updates the authenticated user. Provide `profile` and/or `leaderboard`. ' +
+      'Omitted sections are unchanged. Profile fields: omitted keys unchanged; null clears a field. ' +
+      'Leaderboard opt-out removes the user from public ranks on subsequent reads (ADR 0023).',
   })
   @ApiErrorCodes([
     ErrorCode.VALIDATION_FAILED,
@@ -51,6 +55,10 @@ export class MeController {
   @ApiIdempotencyKeyHeader({ required: false })
   @Idempotent({ scopeKey: 'users.me.patch' })
   async patchMe(@CurrentPrincipal() principal: AuthPrincipal, @Body() body: PatchMeRequestDto) {
-    return this.users.updateMeProfile(principal.userId, body.profile);
+    const patch: UpdateMePatch = {
+      ...(body.profile !== undefined ? { profile: body.profile } : {}),
+      ...(body.leaderboard !== undefined ? { leaderboard: { optIn: body.leaderboard.optIn } } : {}),
+    };
+    return this.users.updateMe(principal.userId, patch);
   }
 }

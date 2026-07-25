@@ -530,7 +530,8 @@ paths:
         - INTERNAL
   /v1/me:
     get:
-      description: Returns the authenticated user profile.
+      description: Returns the authenticated user profile, including leaderboard
+        opt-in settings (default off).
       operationId: users.me.get
       parameters: []
       responses:
@@ -549,8 +550,10 @@ paths:
         - UNAUTHORIZED
         - INTERNAL
     patch:
-      description: Partially updates the authenticated user profile. Omitted fields
-        are unchanged; null clears a field.
+      description: "Partially updates the authenticated user. Provide `profile` and/or
+        `leaderboard`. Omitted sections are unchanged. Profile fields: omitted
+        keys unchanged; null clears a field. Leaderboard opt-out removes the
+        user from public ranks on subsequent reads (ADR 0023)."
       operationId: users.me.patch
       parameters:
         - name: Idempotency-Key
@@ -578,7 +581,7 @@ paths:
                 $ref: "#/components/schemas/MeEnvelopeDto"
       security:
         - access-token: []
-      summary: Update current user profile
+      summary: Update current user profile and/or leaderboard settings
       tags: *a4
       x-error-codes:
         - VALIDATION_FAILED
@@ -1209,6 +1212,66 @@ paths:
         - FORBIDDEN
         - SYNC_DEVICE_NOT_FOUND
         - INTERNAL
+  /v1/leaderboard:
+    get:
+      description: "Returns a public ranking of users who opted in to the leaderboard,
+        ordered by summed parent daily totalTokens over a UTC window (7d, 30d,
+        or all-time). Authentication is optional: a valid Bearer token adds a
+        viewer block; invalid tokens are ignored (anonymous). Only opted-in
+        users with score > 0 appear. See ADR 0023."
+      operationId: leaderboard.list
+      parameters:
+        - name: window
+          required: true
+          in: query
+          description: UTC calendar window ending today UTC (ADR 0023).
+          schema:
+            example: 7d
+            type: string
+            enum:
+              - 7d
+              - 30d
+              - all
+        - name: metric
+          required: false
+          in: query
+          description: Ranking metric. v1 only accepts tokens.
+          schema:
+            example: tokens
+            type: string
+            enum:
+              - tokens
+        - name: limit
+          required: false
+          in: query
+          description: Page size (default 50, max 100).
+          schema:
+            minimum: 1
+            maximum: 100
+            example: 50
+            type: number
+        - name: cursor
+          required: false
+          in: query
+          description: Opaque keyset cursor from a previous response meta.nextCursor.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardEnvelopeDto"
+      security:
+        - access-token: []
+      summary: Public global leaderboard
+      tags:
+        - Leaderboard
+      x-error-codes:
+        - VALIDATION_FAILED
+        - RATE_LIMITED
+        - INTERNAL
 info:
   title: Burnly API
   description: Generated API contract (code-first).
@@ -1225,6 +1288,8 @@ tags:
     description: "Desktop collect: device registration and usage push."
   - name: Usage
     description: Authenticated usage read APIs for web reports.
+  - name: Leaderboard
+    description: Public global leaderboard (opt-in participation; token metric; ADR 0023).
 servers:
   - url: /
 components:
@@ -1274,6 +1339,22 @@ components:
           type: string
           example: Alighieri
           nullable: true
+    MeLeaderboardDto:
+      type: object
+      properties:
+        optIn:
+          type: boolean
+          example: false
+          description: When true, aggregated token totals and public profile fields may
+            appear on the public leaderboard (ADR 0023). Default false.
+        optedInAt:
+          type: string
+          example: 2026-07-23T12:00:00.000Z
+          nullable: true
+          format: date-time
+          description: When the user last opted in; null when opted out or never opted in.
+      required:
+        - optIn
     AccountDeletionDto:
       type: object
       properties:
@@ -1318,6 +1399,8 @@ components:
               - GOOGLE
         profile:
           $ref: "#/components/schemas/MeProfileDto"
+        leaderboard:
+          $ref: "#/components/schemas/MeLeaderboardDto"
         accountDeletion:
           nullable: true
           description: When set, the account is scheduled for deletion. The request can be
@@ -1332,6 +1415,7 @@ components:
         - roles
         - authMethods
         - profile
+        - leaderboard
     AuthResultWithMeDto:
       type: object
       properties:
@@ -1723,13 +1807,23 @@ components:
           nullable: true
           minLength: 1
           maxLength: 100
+    PatchMeLeaderboardDto:
+      type: object
+      properties:
+        optIn:
+          type: boolean
+          example: true
+          description: Set true to appear on the public leaderboard; false removes
+            immediately.
+      required:
+        - optIn
     PatchMeRequestDto:
       type: object
       properties:
         profile:
           $ref: "#/components/schemas/PatchMeProfileDto"
-      required:
-        - profile
+        leaderboard:
+          $ref: "#/components/schemas/PatchMeLeaderboardDto"
     CreateProfileImageUploadRequestDto:
       type: object
       properties:
@@ -2926,3 +3020,159 @@ components:
           $ref: "#/components/schemas/UsageSourceModelsDataDto"
       required:
         - data
+    LeaderboardToolDto:
+      type: object
+      properties:
+        sourceKey:
+          type: string
+          example: claude-code
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 90000000
+          description: Token total for this tool in the window (number or string for large
+            values).
+      required:
+        - sourceKey
+        - totalTokens
+    LeaderboardModelDto:
+      type: object
+      properties:
+        modelIdentityKey:
+          type: string
+          example: claude-sonnet-4
+        displayName:
+          type: string
+          nullable: true
+          example: Claude Sonnet 4
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 80000000
+      required:
+        - modelIdentityKey
+        - totalTokens
+    LeaderboardEntryDto:
+      type: object
+      properties:
+        rank:
+          type: number
+          example: 1
+        userId:
+          type: string
+          example: 3d2c7b2a-2dd6-46a5-8f8e-3b5de8a5b0f0
+        displayName:
+          type: string
+          example: Ahmad Fikril
+        avatarUrl:
+          type: string
+          nullable: true
+          description: Public avatar URL when available; null in v1 (auth-only images).
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 128400000
+        tools:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardToolDto"
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardModelDto"
+        toolsOmitted:
+          type: number
+          example: 0
+        modelsOmitted:
+          type: number
+          example: 0
+      required:
+        - rank
+        - userId
+        - displayName
+        - totalTokens
+        - tools
+        - models
+        - toolsOmitted
+        - modelsOmitted
+    LeaderboardViewerDto:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ranked
+            - opted_out
+            - no_activity
+          example: ranked
+          description: "ranked: entry present with rank. opted_out: not participating.
+            no_activity: opted in but score 0."
+        entry:
+          description: Present only when status is ranked.
+          allOf:
+            - $ref: "#/components/schemas/LeaderboardEntryDto"
+      required:
+        - status
+    LeaderboardDataDto:
+      type: object
+      properties:
+        window:
+          type: string
+          enum:
+            - 7d
+            - 30d
+            - all
+          example: 7d
+        metric:
+          type: string
+          enum:
+            - tokens
+          example: tokens
+        windowStartDate:
+          type: string
+          nullable: true
+          example: 2026-07-17
+          description: Inclusive UTC start date; may be null for empty all-time board.
+        windowEndDate:
+          type: string
+          example: 2026-07-23
+        generatedAt:
+          type: string
+          example: 2026-07-23T13:00:00.000Z
+          format: date-time
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntryDto"
+        viewer:
+          description: Present when a valid Bearer token is provided. Omitted for
+            anonymous requests. Invalid tokens are treated as anonymous (list
+            still returns 200).
+          allOf:
+            - $ref: "#/components/schemas/LeaderboardViewerDto"
+      required:
+        - window
+        - metric
+        - windowEndDate
+        - generatedAt
+        - entries
+    LeaderboardMetaDto:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page; null when no more rows.
+    LeaderboardEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/LeaderboardDataDto"
+        meta:
+          $ref: "#/components/schemas/LeaderboardMetaDto"
+      required:
+        - data
+        - meta

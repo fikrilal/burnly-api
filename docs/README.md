@@ -47,6 +47,9 @@ Code should follow these docs; if code and docs diverge, fix the mismatch.
   - `docs/planning/desktop-collect-api-requirements.md` — APIs desktop will call (auth + push)
   - `docs/planning/desktop-collect-implementation-plan.md` — high-level end-to-end collect roadmap
   - `docs/planning/desktop-auth-via-web.md` — desktop signs in on burnly-web (Google/GitHub), handoff back to app
+  - `docs/planning/leaderboard-api-handoff.md` — public global leaderboard (tokens, opt-in, web consumer)
+  - ADR for leaderboard: `docs/adr/0023-public-leaderboard-opt-in.md`
+  - Exec plan (done): `docs/exec-plans/completed/2026-07-23_public-leaderboard.md`
   - ADRs for collect: `docs/adr/0020-daily-usage-cloud-projection.md`, `docs/adr/0021-usage-sync-identity-and-devices.md`
   - Phase C collect write path done: `docs/exec-plans/completed/2026-07-09_usage-sync-02-device-api.md`, `docs/exec-plans/completed/2026-07-09_usage-sync-03-daily-usage-push.md`
   - Phase D hardening done: `docs/exec-plans/completed/2026-07-09_usage-sync-04-idempotency-and-limits.md`, `docs/exec-plans/completed/2026-07-09_usage-sync-05-account-deletion-wipe.md`

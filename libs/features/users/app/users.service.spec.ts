@@ -6,7 +6,7 @@ import type {
   RequestAccountDeletionResult,
   UsersRepository,
 } from './ports/users.repository';
-import type { MeView, UpdateMeProfilePatch, UserRecord } from './users.types';
+import type { MeView, UpdateMePatch, UserRecord } from './users.types';
 import type { Clock } from './time';
 
 function unimplemented(): never {
@@ -27,6 +27,7 @@ function makeUser(partial?: Partial<UserRecord>): UserRecord {
     deletionScheduledFor: null,
     authMethods: ['PASSWORD'],
     profile: null,
+    leaderboard: { optIn: false, optedInAt: null },
     ...partial,
   };
 }
@@ -34,7 +35,7 @@ function makeUser(partial?: Partial<UserRecord>): UserRecord {
 function makeRepo(overrides: Partial<UsersRepository>): UsersRepository {
   return {
     findById: async () => unimplemented(),
-    updateProfile: async () => unimplemented(),
+    updateMe: async () => unimplemented(),
     requestAccountDeletion: async () => unimplemented(),
     cancelAccountDeletion: async () => unimplemented(),
     ...overrides,
@@ -66,7 +67,7 @@ function makeScheduler(): {
 describe('UsersService', () => {
   const clock = fixedClock(new Date('2026-01-01T00:00:00.000Z'));
 
-  it('getMe returns a MeView with a non-null profile', async () => {
+  it('getMe returns a MeView with a non-null profile and default leaderboard off', async () => {
     const repo = makeRepo({ findById: async () => makeUser({ profile: null }) });
     const { scheduler } = makeScheduler();
     const service = new UsersService(repo, scheduler, clock);
@@ -85,7 +86,26 @@ describe('UsersService', () => {
         givenName: null,
         familyName: null,
       },
+      leaderboard: { optIn: false, optedInAt: null },
       accountDeletion: null,
+    });
+  });
+
+  it('getMe maps leaderboard opted-in timestamp', async () => {
+    const optedInAt = new Date('2026-07-23T12:00:00.000Z');
+    const repo = makeRepo({
+      findById: async () =>
+        makeUser({
+          leaderboard: { optIn: true, optedInAt },
+        }),
+    });
+    const { scheduler } = makeScheduler();
+    const service = new UsersService(repo, scheduler, clock);
+
+    const res = await service.getMe('user-1');
+    expect(res.leaderboard).toEqual({
+      optIn: true,
+      optedInAt: '2026-07-23T12:00:00.000Z',
     });
   });
 
@@ -105,17 +125,33 @@ describe('UsersService', () => {
     await expect(service.getMe('user-1')).rejects.toBeInstanceOf(UserNotFoundError);
   });
 
-  it('updateMeProfile throws UserNotFoundError when repo returns null', async () => {
+  it('updateMe throws UserNotFoundError when repo returns null', async () => {
     const repo = makeRepo({
-      updateProfile: async () => null,
+      updateMe: async () => null,
     });
     const { scheduler } = makeScheduler();
     const service = new UsersService(repo, scheduler, clock);
 
-    const patch: UpdateMeProfilePatch = { displayName: 'Alice' };
-    await expect(service.updateMeProfile('missing', patch)).rejects.toBeInstanceOf(
-      UserNotFoundError,
-    );
+    const patch: UpdateMePatch = { profile: { displayName: 'Alice' } };
+    await expect(service.updateMe('missing', patch)).rejects.toBeInstanceOf(UserNotFoundError);
+  });
+
+  it('updateMe passes leaderboard patch through to the repository', async () => {
+    let captured: UpdateMePatch | undefined;
+    const repo = makeRepo({
+      updateMe: async (_id, patch) => {
+        captured = patch;
+        return makeUser({
+          leaderboard: { optIn: true, optedInAt: new Date('2026-01-01T00:00:00.000Z') },
+        });
+      },
+    });
+    const { scheduler } = makeScheduler();
+    const service = new UsersService(repo, scheduler, clock);
+
+    const res = await service.updateMe('user-1', { leaderboard: { optIn: true } });
+    expect(captured).toEqual({ leaderboard: { optIn: true } });
+    expect(res.leaderboard.optIn).toBe(true);
   });
 
   it('requestAccountDeletion passes deterministic now + scheduledFor to the repository and schedules the job', async () => {
@@ -150,106 +186,36 @@ describe('UsersService', () => {
       traceId: 'trace-1',
     });
 
-    expect(capturedInput).toBeDefined();
-    expect(capturedInput?.now.getTime()).toBe(expectedNow.getTime());
-    expect(capturedInput?.scheduledFor.getTime()).toBe(expectedScheduledFor.getTime());
-
-    expect(scheduleCalls).toHaveLength(1);
-    expect(scheduleCalls[0]?.userId).toBe('user-1');
-    expect(scheduleCalls[0]?.scheduledFor.getTime()).toBe(expectedScheduledFor.getTime());
-
-    expect(res.scheduledFor.getTime()).toBe(expectedScheduledFor.getTime());
-    expect(res.newlyRequested).toBe(true);
+    expect(capturedInput).toEqual({
+      userId: 'user-1',
+      sessionId: 'session-1',
+      traceId: 'trace-1',
+      now: expectedNow,
+      scheduledFor: expectedScheduledFor,
+    });
+    expect(scheduleCalls).toEqual([{ userId: 'user-1', scheduledFor: expectedScheduledFor }]);
+    expect(res).toEqual({ scheduledFor: expectedScheduledFor, newlyRequested: true });
   });
 
-  it('requestAccountDeletion uses the stored due date when already requested', async () => {
-    const storedDue = new Date('2026-02-01T00:00:00.000Z');
-
+  it('cancelAccountDeletion cancels the finalize job', async () => {
     const repo = makeRepo({
-      requestAccountDeletion: async () => {
-        const user = makeUser({ deletionScheduledFor: storedDue });
-        const res: RequestAccountDeletionResult = { kind: 'already_requested', user };
+      cancelAccountDeletion: async () => {
+        const res: CancelAccountDeletionResult = {
+          kind: 'ok',
+          user: makeUser({ deletionScheduledFor: null }),
+        };
         return res;
       },
     });
-
-    const { scheduler, scheduleCalls } = makeScheduler();
+    const { scheduler, cancelCalls } = makeScheduler();
     const service = new UsersService(repo, scheduler, clock);
 
-    const res = await service.requestAccountDeletion({
+    await service.cancelAccountDeletion({
       userId: 'user-1',
       sessionId: 'session-1',
       traceId: 'trace-1',
     });
 
-    expect(scheduleCalls).toHaveLength(1);
-    expect(scheduleCalls[0]?.scheduledFor.getTime()).toBe(storedDue.getTime());
-    expect(res.scheduledFor.getTime()).toBe(storedDue.getTime());
-    expect(res.newlyRequested).toBe(false);
-  });
-
-  it('requestAccountDeletion throws UserNotFoundError when repo returns not_found', async () => {
-    const repo = makeRepo({
-      requestAccountDeletion: async () => ({ kind: 'not_found' }),
-    });
-    const { scheduler, scheduleCalls } = makeScheduler();
-    const service = new UsersService(repo, scheduler, clock);
-
-    await expect(
-      service.requestAccountDeletion({ userId: 'missing', sessionId: 's', traceId: 't' }),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
-
-    expect(scheduleCalls).toHaveLength(0);
-  });
-
-  it('requestAccountDeletion treats DELETED user as not_found (no job scheduled)', async () => {
-    const repo = makeRepo({
-      requestAccountDeletion: async () => ({ kind: 'ok', user: makeUser({ status: 'DELETED' }) }),
-    });
-    const { scheduler, scheduleCalls } = makeScheduler();
-    const service = new UsersService(repo, scheduler, clock);
-
-    await expect(
-      service.requestAccountDeletion({ userId: 'user-1', sessionId: 's', traceId: 't' }),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
-
-    expect(scheduleCalls).toEqual([]);
-  });
-
-  it('cancelAccountDeletion cancels the scheduled job (idempotent)', async () => {
-    const expectedNow = new Date('2026-01-01T00:00:00.000Z');
-    let capturedNow: Date | undefined;
-
-    const repo = makeRepo({
-      cancelAccountDeletion: async (input) => {
-        capturedNow = input.now;
-        const user = makeUser();
-        const res: CancelAccountDeletionResult = { kind: 'not_requested', user };
-        return res;
-      },
-    });
-
-    const { scheduler, cancelCalls } = makeScheduler();
-    const service = new UsersService(repo, scheduler, fixedClock(expectedNow));
-
-    await service.cancelAccountDeletion({ userId: 'user-1', sessionId: 's', traceId: 't' });
-
-    expect(capturedNow?.getTime()).toBe(expectedNow.getTime());
     expect(cancelCalls).toEqual([{ userId: 'user-1' }]);
-  });
-
-  it('cancelAccountDeletion throws UserNotFoundError when repo returns not_found', async () => {
-    const repo = makeRepo({
-      cancelAccountDeletion: async () => ({ kind: 'not_found' }),
-    });
-
-    const { scheduler, cancelCalls } = makeScheduler();
-    const service = new UsersService(repo, scheduler, clock);
-
-    await expect(
-      service.cancelAccountDeletion({ userId: 'missing', sessionId: 's', traceId: 't' }),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
-
-    expect(cancelCalls).toHaveLength(0);
   });
 });

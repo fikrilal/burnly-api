@@ -11,6 +11,7 @@ import { validateEnv } from '../../../libs/platform/config/env.validation';
 import { AuthModule } from '../../../libs/features/auth/infra/auth.module';
 import { UsersModule } from '../../../libs/features/users/infra/users.module';
 import { UsageSyncModule } from '../../../libs/features/usage-sync/infra/usage-sync.module';
+import { LeaderboardModule } from '../../../libs/features/leaderboard/infra/leaderboard.module';
 import { IdempotencyInterceptor } from '../../../libs/platform/http/idempotency/idempotency.interceptor';
 
 @Module({
@@ -23,6 +24,7 @@ import { IdempotencyInterceptor } from '../../../libs/platform/http/idempotency/
     AuthModule,
     UsersModule,
     UsageSyncModule,
+    LeaderboardModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },

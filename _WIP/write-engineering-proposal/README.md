@@ -20,14 +20,14 @@
 
 Phase 1 collect + Phase 2 baseline read path are **implemented** (see git history). Proposal markdown here may still say “Draft” until edited.
 
-| #   | Scope                                               | Proposal                      | Code                    |
-| --- | --------------------------------------------------- | ----------------------------- | ----------------------- |
-| 0   | Shared read foundation                              | `00-usage-read-foundation.md` | Done                    |
-| 1   | `GET /v1/usage/summary`                             | `01-usage-summary.md`         | Done                    |
-| 2   | `GET /v1/usage/calendar`                            | `02-usage-calendar.md`        | Done                    |
-| 3   | `GET /v1/usage/days/{date}`                         | `03-usage-day-detail.md`      | Done                    |
-| 4   | `GET /v1/usage/models`                              | `04-usage-models.md`          | Done                    |
-| 5   | `GET /v1/sync/status`                               | `05-sync-status.md`           | Done                    |
+| #   | Scope                                               | Proposal                      | Code |
+| --- | --------------------------------------------------- | ----------------------------- | ---- |
+| 0   | Shared read foundation                              | `00-usage-read-foundation.md` | Done |
+| 1   | `GET /v1/usage/summary`                             | `01-usage-summary.md`         | Done |
+| 2   | `GET /v1/usage/calendar`                            | `02-usage-calendar.md`        | Done |
+| 3   | `GET /v1/usage/days/{date}`                         | `03-usage-day-detail.md`      | Done |
+| 4   | `GET /v1/usage/models`                              | `04-usage-models.md`          | Done |
+| 5   | `GET /v1/sync/status`                               | `05-sync-status.md`           | Done |
 | 6   | **`GET /v1/usage/sources` (+ models under source)** | `06-usage-sources.md`         | Done |
 
 ## Shared product rules (all usage reads)
