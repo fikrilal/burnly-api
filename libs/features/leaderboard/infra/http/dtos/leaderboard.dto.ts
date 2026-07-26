@@ -85,6 +85,14 @@ export class LeaderboardEntryDto {
   @ApiPropertyOptional({
     type: String,
     nullable: true,
+    example: 'dante',
+    description: 'Public handle/username when provided by the user.',
+  })
+  username!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description: 'Public avatar URL when available; null in v1 (auth-only images).',
   })
   avatarUrl!: string | null;

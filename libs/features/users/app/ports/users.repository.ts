@@ -10,8 +10,21 @@ export type CancelAccountDeletionResult =
   | Readonly<{ kind: 'not_requested'; user: UserRecord }>
   | Readonly<{ kind: 'not_found' }>;
 
+export type PublicProfileStatsResult = Readonly<{
+  totalTokens: bigint;
+  topTools: ReadonlyArray<{ sourceKey: string; totalTokens: bigint }>;
+  topModels: ReadonlyArray<{
+    modelIdentityKey: string;
+    displayName: string | null;
+    totalTokens: bigint;
+  }>;
+  activityCalendar: ReadonlyArray<{ date: string; totalTokens: bigint }>;
+}>;
+
 export interface UsersRepository {
   findById(userId: string): Promise<UserRecord | null>;
+  findByUsername(username: string): Promise<UserRecord | null>;
+  getPublicProfileStats(userId: string): Promise<PublicProfileStatsResult>;
   updateMe(userId: string, patch: UpdateMePatch): Promise<UserRecord | null>;
 
   requestAccountDeletion(input: {

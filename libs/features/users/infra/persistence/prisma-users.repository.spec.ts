@@ -105,7 +105,7 @@ describe('PrismaUsersRepository.updateMe (unit)', () => {
             familyName: null,
             githubUrl: null,
             websiteUrl: null,
-            leaderboardOptIn: false,
+            leaderboardOptIn: true,
             leaderboardOptedInAt: null,
           },
           passwordCredential: null,
@@ -142,7 +142,7 @@ describe('PrismaUsersRepository.updateMe (unit)', () => {
         githubUrl: null,
         websiteUrl: null,
       },
-      leaderboard: { optIn: false, optedInAt: null },
+      leaderboard: { optIn: true, optedInAt: null },
     });
   });
 

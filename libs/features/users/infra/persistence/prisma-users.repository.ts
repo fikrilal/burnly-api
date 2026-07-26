@@ -8,7 +8,7 @@ import {
   type User,
   type UserProfile,
 } from '@prisma/client';
-import type { UsersRepository } from '../../app/ports/users.repository';
+import type { PublicProfileStatsResult, UsersRepository } from '../../app/ports/users.repository';
 import type {
   LeaderboardSettingsRecord,
   UpdateMePatch,
@@ -22,9 +22,18 @@ import type { AuthMethod } from '../../../../shared/auth/auth-method';
 import type { Clock } from '../../app/time';
 import { USERS_CLOCK } from '../users.tokens';
 
+import { UsersError } from '../../app/users.errors';
+import { UsersErrorCode } from '../../app/users.error-codes';
+
 type PrismaUserWithProfile = Pick<
   User,
-  'id' | 'email' | 'emailVerifiedAt' | 'status' | 'deletionRequestedAt' | 'deletionScheduledFor'
+  | 'id'
+  | 'email'
+  | 'emailVerifiedAt'
+  | 'status'
+  | 'createdAt'
+  | 'deletionRequestedAt'
+  | 'deletionScheduledFor'
 > & {
   profile: Pick<
     UserProfile,
@@ -32,6 +41,7 @@ type PrismaUserWithProfile = Pick<
     | 'displayName'
     | 'givenName'
     | 'familyName'
+    | 'username'
     | 'githubUrl'
     | 'websiteUrl'
     | 'leaderboardOptIn'
@@ -46,6 +56,7 @@ const USER_WITH_PROFILE_SELECT = {
   email: true,
   emailVerifiedAt: true,
   status: true,
+  createdAt: true,
   deletionRequestedAt: true,
   deletionScheduledFor: true,
   profile: {
@@ -54,6 +65,7 @@ const USER_WITH_PROFILE_SELECT = {
       displayName: true,
       givenName: true,
       familyName: true,
+      username: true,
       githubUrl: true,
       websiteUrl: true,
       leaderboardOptIn: true,
@@ -71,6 +83,7 @@ function toProfileRecord(profile: PrismaUserWithProfile['profile']): UserProfile
     displayName: profile.displayName,
     givenName: profile.givenName,
     familyName: profile.familyName,
+    username: profile.username,
     githubUrl: profile.githubUrl,
     websiteUrl: profile.websiteUrl,
   };
@@ -78,7 +91,7 @@ function toProfileRecord(profile: PrismaUserWithProfile['profile']): UserProfile
 
 function toLeaderboardRecord(profile: PrismaUserWithProfile['profile']): LeaderboardSettingsRecord {
   if (!profile) {
-    return { optIn: false, optedInAt: null };
+    return { optIn: true, optedInAt: null };
   }
   return {
     optIn: profile.leaderboardOptIn,
@@ -116,6 +129,7 @@ function toUserRecord(user: PrismaUserWithProfile): UserRecord {
     email: user.email,
     emailVerifiedAt: user.emailVerifiedAt,
     status: toUserStatus(user.status),
+    createdAt: user.createdAt,
     deletionRequestedAt: user.deletionRequestedAt,
     deletionScheduledFor: user.deletionScheduledFor,
     authMethods: toAuthMethods(user),
@@ -142,6 +156,82 @@ export class PrismaUsersRepository implements UsersRepository {
     return toUserRecord(user);
   }
 
+  async findByUsername(username: string): Promise<UserRecord | null> {
+    const client = this.prisma.getClient();
+    const user = await client.user.findFirst({
+      where: {
+        status: { not: PrismaUserStatus.DELETED },
+        profile: { username: { equals: username, mode: 'insensitive' } },
+      },
+      select: USER_WITH_PROFILE_SELECT,
+    });
+    if (!user) return null;
+    return toUserRecord(user);
+  }
+
+  async getPublicProfileStats(userId: string): Promise<PublicProfileStatsResult> {
+    const client = this.prisma.getClient();
+
+    const sumResult = await client.dailyUsageFact.aggregate({
+      where: { userId, recordState: 'active' },
+      _sum: { totalTokens: true },
+    });
+    const totalTokens = sumResult._sum.totalTokens ?? 0n;
+
+    const toolRows = await client.$queryRaw<Array<{ source_key: string; total_tokens: bigint }>>`
+      SELECT f."sourceKey" AS source_key, SUM(f."totalTokens") AS total_tokens
+      FROM "DailyUsageFact" f
+      WHERE f."userId" = ${userId}::uuid AND f."recordState" = 'active'::"UsageRecordState"
+      GROUP BY f."sourceKey"
+      ORDER BY total_tokens DESC, source_key ASC
+      LIMIT 5
+    `;
+
+    const modelRows = await client.$queryRaw<
+      Array<{ model_identity_key: string; display_name: string | null; total_tokens: bigint }>
+    >`
+      SELECT m."modelIdentityKey" AS model_identity_key, MAX(m."displayName") AS display_name, SUM(COALESCE(m."totalTokens", 0)) AS total_tokens
+      FROM "DailyModelUsageFact" m
+      INNER JOIN "DailyUsageFact" f ON f.id = m."dailyUsageFactId"
+      WHERE m."userId" = ${userId}::uuid AND f."recordState" = 'active'::"UsageRecordState"
+      GROUP BY m."modelIdentityKey"
+      HAVING SUM(COALESCE(m."totalTokens", 0)) > 0
+      ORDER BY total_tokens DESC, model_identity_key ASC
+      LIMIT 5
+    `;
+
+    const calendarRows = await client.dailyUsageFact.groupBy({
+      by: ['usageDate'],
+      where: { userId, recordState: 'active' },
+      _sum: { totalTokens: true },
+      orderBy: { usageDate: 'asc' },
+    });
+
+    const activityCalendar = calendarRows.map((r) => {
+      const year = r.usageDate.getUTCFullYear();
+      const month = String(r.usageDate.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(r.usageDate.getUTCDate()).padStart(2, '0');
+      return {
+        date: `${year}-${month}-${day}`,
+        totalTokens: r._sum.totalTokens ?? 0n,
+      };
+    });
+
+    return {
+      totalTokens,
+      topTools: toolRows.map((r) => ({
+        sourceKey: r.source_key,
+        totalTokens: BigInt(r.total_tokens),
+      })),
+      topModels: modelRows.map((r) => ({
+        modelIdentityKey: r.model_identity_key,
+        displayName: r.display_name,
+        totalTokens: BigInt(r.total_tokens),
+      })),
+      activityCalendar,
+    };
+  }
+
   async updateMe(userId: string, patch: UpdateMePatch): Promise<UserRecord | null> {
     const client = this.prisma.getClient();
     const now = this.clock.now();
@@ -150,6 +240,7 @@ export class PrismaUsersRepository implements UsersRepository {
       displayName?: string | null;
       givenName?: string | null;
       familyName?: string | null;
+      username?: string | null;
       githubUrl?: string | null;
       websiteUrl?: string | null;
       leaderboardOptIn?: boolean;
@@ -166,6 +257,9 @@ export class PrismaUsersRepository implements UsersRepository {
       if (patch.profile.familyName !== undefined) {
         profileData.familyName = patch.profile.familyName;
       }
+      if (patch.profile.username !== undefined) {
+        profileData.username = patch.profile.username;
+      }
       if (patch.profile.githubUrl !== undefined) {
         profileData.githubUrl = patch.profile.githubUrl;
       }
@@ -179,27 +273,46 @@ export class PrismaUsersRepository implements UsersRepository {
       profileData.leaderboardOptedInAt = patch.leaderboard.optIn ? now : null;
     }
 
-    return await client.$transaction(async (tx) => {
-      const locked = await tx.user.updateMany({
-        where: { id: userId, status: { not: PrismaUserStatus.DELETED } },
-        data: { updatedAt: now },
-      });
-      if (locked.count === 0) return null;
+    try {
+      return await client.$transaction(async (tx) => {
+        const locked = await tx.user.updateMany({
+          where: { id: userId, status: { not: PrismaUserStatus.DELETED } },
+          data: { updatedAt: now },
+        });
+        if (locked.count === 0) return null;
 
-      await tx.userProfile.upsert({
-        where: { userId },
-        create: { userId, ...profileData },
-        update: profileData,
-      });
+        await tx.userProfile.upsert({
+          where: { userId },
+          create: { userId, ...profileData },
+          update: profileData,
+        });
 
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: USER_WITH_PROFILE_SELECT,
-      });
-      if (!user || user.status === PrismaUserStatus.DELETED) return null;
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: USER_WITH_PROFILE_SELECT,
+        });
+        if (!user || user.status === PrismaUserStatus.DELETED) return null;
 
-      return toUserRecord(user);
-    });
+        return toUserRecord(user);
+      });
+    } catch (err: unknown) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        const metaTarget = err.meta?.target;
+        const targetContainsUsername = Array.isArray(metaTarget) && metaTarget.includes('username');
+        const targetIsUsernameString =
+          typeof metaTarget === 'string' && metaTarget.includes('username');
+        const messageContainsUsername = err.message.includes('username');
+
+        if (targetContainsUsername || targetIsUsernameString || messageContainsUsername) {
+          throw new UsersError({
+            status: 409,
+            code: UsersErrorCode.USERNAME_TAKEN,
+            message: 'Username is already taken',
+          });
+        }
+      }
+      throw err;
+    }
   }
 
   async requestAccountDeletion(input: {

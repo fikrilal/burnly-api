@@ -130,6 +130,52 @@ function AtLeastOneOfRoot(fields: ReadonlyArray<string>, validationOptions?: Val
   };
 }
 
+const RESERVED_USERNAMES = new Set([
+  'admin',
+  'api',
+  'login',
+  'register',
+  'dashboard',
+  'settings',
+  'leaderboard',
+  'reports',
+  'download',
+  'devices',
+  'profile',
+  'auth',
+  'null',
+  'undefined',
+]);
+
+export function transformUsername({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === '') return null;
+  return trimmed;
+}
+
+function IsNotReservedUsername(validationOptions?: ValidationOptions) {
+  return (target: object, propertyName: string) => {
+    registerDecorator({
+      name: 'isNotReservedUsername',
+      target: target.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: unknown): boolean {
+          if (value === null || value === undefined) return true;
+          if (typeof value !== 'string') return false;
+          return !RESERVED_USERNAMES.has(value.toLowerCase());
+        },
+        defaultMessage(args: ValidationArguments): string {
+          return `username '${String(args.value)}' is reserved and cannot be used`;
+        },
+      },
+    });
+  };
+}
+
 export class MeProfileDto {
   @ApiPropertyOptional({
     type: String,
@@ -156,6 +202,11 @@ export class MeProfileDto {
   @IsOptional()
   @IsString()
   familyName!: string | null;
+
+  @ApiPropertyOptional({ type: String, example: 'dante', nullable: true })
+  @IsOptional()
+  @IsString()
+  username!: string | null;
 
   @ApiPropertyOptional({
     type: String,
@@ -299,6 +350,23 @@ export class PatchMeProfileDto {
 
   @ApiPropertyOptional({
     type: String,
+    example: 'dante',
+    nullable: true,
+    minLength: 3,
+    maxLength: 30,
+  })
+  @Transform(transformUsername)
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9_-]{3,30}$/, {
+    message:
+      'username must be 3 to 30 characters long and contain only lowercase letters, numbers, hyphens, or underscores',
+  })
+  @IsNotReservedUsername()
+  username?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
     example: 'https://github.com/dante',
     nullable: true,
     maxLength: MAX_URL_FIELD_LENGTH,
@@ -347,9 +415,12 @@ export class PatchMeRequestDto {
   @IsObject()
   @ValidateNested()
   @Type(() => PatchMeProfileDto)
-  @AtLeastOneDefined(['displayName', 'givenName', 'familyName', 'githubUrl', 'websiteUrl'], {
-    message: 'At least one profile field must be provided',
-  })
+  @AtLeastOneDefined(
+    ['displayName', 'givenName', 'familyName', 'username', 'githubUrl', 'websiteUrl'],
+    {
+      message: 'At least one profile field must be provided',
+    },
+  )
   profile?: PatchMeProfileDto;
 
   @ApiPropertyOptional({ type: PatchMeLeaderboardDto })

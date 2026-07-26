@@ -19,15 +19,14 @@ implementation does not invent privacy or ranking semantics.
 
 ### Separate consent (non-negotiable)
 
-Public leaderboard participation is **opt-in**, default **off**, independent of:
+Public leaderboard participation is **opt-in**, default **on** (`leaderboardOptIn = true`), independent of:
 
-- account creation,
 - desktop daily usage push,
 - private usage report APIs.
 
 | Rule      | Detail                                                                                         |
 | --------- | ---------------------------------------------------------------------------------------------- |
-| Default   | `leaderboardOptIn = false`                                                                     |
+| Default   | `leaderboardOptIn = true` (Public by default for new accounts)                                 |
 | Opt-in    | Explicit authenticated settings write                                                          |
 | Opt-out   | Immediate: subsequent public ranks must not include the user                                   |
 | Messaging | Settings copy must state name, avatar, aggregated tokens, top tools/models may appear publicly |

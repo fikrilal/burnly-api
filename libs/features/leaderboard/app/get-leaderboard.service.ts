@@ -36,6 +36,7 @@ export type LeaderboardEntryView = Readonly<{
   rank: number;
   userId: string;
   displayName: string;
+  username: string | null;
   avatarUrl: string | null;
   githubUrl: string | null;
   websiteUrl: string | null;
@@ -239,6 +240,7 @@ export class GetLeaderboardService {
           },
           row.userId,
         ),
+        username: profile?.username ?? null,
         avatarUrl: null,
         githubUrl: profile?.githubUrl ?? null,
         websiteUrl: profile?.websiteUrl ?? null,
@@ -334,6 +336,7 @@ export class GetLeaderboardService {
         },
         userId,
       ),
+      username: profile.username,
       avatarUrl: null,
       githubUrl: profile.githubUrl,
       websiteUrl: profile.websiteUrl,

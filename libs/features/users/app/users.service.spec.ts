@@ -23,11 +23,12 @@ function makeUser(partial?: Partial<UserRecord>): UserRecord {
     email: 'user@example.com',
     emailVerifiedAt: new Date('2026-01-01T00:00:00.000Z'),
     status: 'ACTIVE',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
     deletionRequestedAt: null,
     deletionScheduledFor: null,
     authMethods: ['PASSWORD'],
     profile: null,
-    leaderboard: { optIn: false, optedInAt: null },
+    leaderboard: { optIn: true, optedInAt: null },
     ...partial,
   };
 }
@@ -35,6 +36,8 @@ function makeUser(partial?: Partial<UserRecord>): UserRecord {
 function makeRepo(overrides: Partial<UsersRepository>): UsersRepository {
   return {
     findById: async () => unimplemented(),
+    findByUsername: async () => unimplemented(),
+    getPublicProfileStats: async () => unimplemented(),
     updateMe: async () => unimplemented(),
     requestAccountDeletion: async () => unimplemented(),
     cancelAccountDeletion: async () => unimplemented(),
@@ -67,7 +70,7 @@ function makeScheduler(): {
 describe('UsersService', () => {
   const clock = fixedClock(new Date('2026-01-01T00:00:00.000Z'));
 
-  it('getMe returns a MeView with a non-null profile and default leaderboard off', async () => {
+  it('getMe returns a MeView with a non-null profile and default leaderboard on', async () => {
     const repo = makeRepo({ findById: async () => makeUser({ profile: null }) });
     const { scheduler } = makeScheduler();
     const service = new UsersService(repo, scheduler, clock);
@@ -85,10 +88,11 @@ describe('UsersService', () => {
         displayName: null,
         givenName: null,
         familyName: null,
+        username: null,
         githubUrl: null,
         websiteUrl: null,
       },
-      leaderboard: { optIn: false, optedInAt: null },
+      leaderboard: { optIn: true, optedInAt: null },
       accountDeletion: null,
     });
   });
@@ -219,5 +223,95 @@ describe('UsersService', () => {
     });
 
     expect(cancelCalls).toEqual([{ userId: 'user-1' }]);
+  });
+
+  describe('getPublicProfileByUsername', () => {
+    it('returns public profile for opted in user', async () => {
+      const repo = makeRepo({
+        findByUsername: async (username) => {
+          if (username === 'dante') {
+            return makeUser({
+              id: 'user-1',
+              profile: {
+                profileImageFileId: null,
+                displayName: 'Dante',
+                givenName: 'Dante',
+                familyName: 'Alighieri',
+                username: 'dante',
+                githubUrl: 'https://github.com/dante',
+                websiteUrl: 'https://dante.example.com',
+              },
+              leaderboard: { optIn: true, optedInAt: new Date('2026-01-01T00:00:00.000Z') },
+            });
+          }
+          return null;
+        },
+        getPublicProfileStats: async (userId) => {
+          expect(userId).toBe('user-1');
+          return {
+            totalTokens: 1000000n,
+            topTools: [{ sourceKey: 'claude-code', totalTokens: 1000000n }],
+            topModels: [
+              {
+                modelIdentityKey: 'claude-sonnet',
+                displayName: 'Claude Sonnet',
+                totalTokens: 1000000n,
+              },
+            ],
+            activityCalendar: [{ date: '2026-01-01', totalTokens: 1000000n }],
+          };
+        },
+      });
+      const { scheduler } = makeScheduler();
+      const service = new UsersService(repo, scheduler, clock);
+
+      const res = await service.getPublicProfileByUsername('dante');
+
+      expect(res).toEqual({
+        id: 'user-1',
+        displayName: 'Dante',
+        username: 'dante',
+        githubUrl: 'https://github.com/dante',
+        websiteUrl: 'https://dante.example.com',
+        joinedAt: '2026-01-01T00:00:00.000Z',
+        totalTokens: 1000000n,
+        topTools: [{ sourceKey: 'claude-code', totalTokens: 1000000n }],
+        topModels: [
+          {
+            modelIdentityKey: 'claude-sonnet',
+            displayName: 'Claude Sonnet',
+            totalTokens: 1000000n,
+          },
+        ],
+        activityCalendar: [{ date: '2026-01-01', totalTokens: 1000000n }],
+      });
+    });
+
+    it('throws UserNotFoundError when user is opted out', async () => {
+      const repo = makeRepo({
+        findByUsername: async () =>
+          makeUser({
+            leaderboard: { optIn: false, optedInAt: null },
+          }),
+      });
+      const { scheduler } = makeScheduler();
+      const service = new UsersService(repo, scheduler, clock);
+
+      await expect(service.getPublicProfileByUsername('dante')).rejects.toBeInstanceOf(
+        UserNotFoundError,
+      );
+    });
+
+    it('throws UserNotFoundError when user does not exist', async () => {
+      const repo = makeRepo({
+        findByUsername: async () => null,
+      });
+      const { scheduler } = makeScheduler();
+      const service = new UsersService(repo, scheduler, clock);
+
+      await expect(service.getPublicProfileByUsername('nonexistent')).rejects.toBeInstanceOf(
+        UserNotFoundError,
+      );
+    });
   });
 });

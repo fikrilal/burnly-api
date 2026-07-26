@@ -137,7 +137,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
   });
 
-  it('me defaults leaderboard off; opt-in toggle works', async () => {
+  it('me defaults leaderboard on; opt-out toggle works', async () => {
     const { accessToken } = await registerUser('lbme');
 
     const me1 = await request(baseUrl)
@@ -145,31 +145,30 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
-    expect(getObjectField(getBodyData(me1.body), 'leaderboard')).toEqual({
-      optIn: false,
-      optedInAt: null,
-    });
+    const lb1 = getObjectField(getBodyData(me1.body), 'leaderboard');
+    expect(lb1.optIn).toBe(true);
+    expect(typeof lb1.optedInAt).toBe('string');
 
     const me2 = await request(baseUrl)
-      .patch('/v1/me')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ leaderboard: { optIn: true } })
-      .expect(200);
-
-    const lb = getObjectField(getBodyData(me2.body), 'leaderboard');
-    expect(lb.optIn).toBe(true);
-    expect(typeof lb.optedInAt).toBe('string');
-
-    const me3 = await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ leaderboard: { optIn: false } })
       .expect(200);
 
-    expect(getObjectField(getBodyData(me3.body), 'leaderboard')).toEqual({
+    expect(getObjectField(getBodyData(me2.body), 'leaderboard')).toEqual({
       optIn: false,
       optedInAt: null,
     });
+
+    const me3 = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ leaderboard: { optIn: true } })
+      .expect(200);
+
+    const lb3 = getObjectField(getBodyData(me3.body), 'leaderboard');
+    expect(lb3.optIn).toBe(true);
+    expect(typeof lb3.optedInAt).toBe('string');
   });
 
   it('lists only opted-in users with score; opt-out removes; viewer statuses', async () => {
@@ -197,11 +196,11 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
       .send({ profile: { displayName: 'Bob' }, leaderboard: { optIn: true } })
       .expect(200);
 
-    // C opted out (default) with high usage — must not appear
+    // C explicitly opted out with high usage — must not appear
     await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${c.accessToken}`)
-      .send({ profile: { displayName: 'Carol' } })
+      .send({ profile: { displayName: 'Carol' }, leaderboard: { optIn: false } })
       .expect(200);
 
     await push(
@@ -211,8 +210,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'claude-code',
           date: today,
-          totalTokens: 100_000_000,
-          models: [{ rawModelId: 'sonnet', totalTokens: 100_000_000 }],
+          totalTokens: 10_000_000_000,
+          models: [{ rawModelId: 'sonnet', totalTokens: 10_000_000_000 }],
         }),
       ],
       1,
@@ -225,8 +224,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'codex',
           date: today,
-          totalTokens: 90_000_000,
-          models: [{ rawModelId: 'gpt', totalTokens: 90_000_000 }],
+          totalTokens: 9_000_000_000,
+          models: [{ rawModelId: 'gpt', totalTokens: 9_000_000_000 }],
         }),
       ],
       1,
