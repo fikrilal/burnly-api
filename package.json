@@ -44,6 +44,8 @@
     "openapi:check": "ts-node --files scripts/openapi-check.ts",
     "deps:up": "docker compose up -d postgres redis minio",
     "deps:down": "docker compose down",
+    "deploy": "scripts/deploy.sh",
+    "rollback": "scripts/rollback.sh",
     "prisma:validate": "prisma validate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
