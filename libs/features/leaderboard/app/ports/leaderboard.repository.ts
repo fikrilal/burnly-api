@@ -11,6 +11,9 @@ export type LeaderboardProfileRow = Readonly<{
   displayName: string | null;
   givenName: string | null;
   familyName: string | null;
+  username: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
   leaderboardOptIn: boolean;
 }>;
 

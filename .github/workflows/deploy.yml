@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Git ref (branch, tag, or SHA) to deploy'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy API to production VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VM_HOST: ${{ secrets.VM_HOST }}
+      VM_USER: ${{ secrets.VM_USER }}
+      VM_SSH_KEY: ${{ runner.temp }}/vm_key
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies (for prisma generate)
+        run: npm ci
+
+      - name: Write VM SSH key
+        run: |
+          echo "${{ secrets.VM_SSH_KEY }}" > "$VM_SSH_KEY"
+          chmod 600 "$VM_SSH_KEY"
+
+      - name: Deploy (build, transfer, swap)
+        run: scripts/deploy.sh --tag "${{ github.sha }}"

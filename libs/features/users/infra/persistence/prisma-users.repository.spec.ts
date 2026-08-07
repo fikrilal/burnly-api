@@ -19,6 +19,8 @@ function createPrismaStub(params: {
       displayName: string | null;
       givenName: string | null;
       familyName: string | null;
+      githubUrl: string | null;
+      websiteUrl: string | null;
       leaderboardOptIn: boolean;
       leaderboardOptedInAt: Date | null;
     }> | null;
@@ -101,7 +103,9 @@ describe('PrismaUsersRepository.updateMe (unit)', () => {
             displayName: 'Dante',
             givenName: null,
             familyName: null,
-            leaderboardOptIn: false,
+            githubUrl: null,
+            websiteUrl: null,
+            leaderboardOptIn: true,
             leaderboardOptedInAt: null,
           },
           passwordCredential: null,
@@ -135,8 +139,10 @@ describe('PrismaUsersRepository.updateMe (unit)', () => {
         displayName: 'Dante',
         givenName: null,
         familyName: null,
+        githubUrl: null,
+        websiteUrl: null,
       },
-      leaderboard: { optIn: false, optedInAt: null },
+      leaderboard: { optIn: true, optedInAt: null },
     });
   });
 
@@ -156,6 +162,8 @@ describe('PrismaUsersRepository.updateMe (unit)', () => {
           displayName: null,
           givenName: null,
           familyName: null,
+          githubUrl: null,
+          websiteUrl: null,
           leaderboardOptIn: true,
           leaderboardOptedInAt: now,
         },

@@ -3,7 +3,6 @@ import request from 'supertest';
 import {
   describeAuthE2eSuite,
   getBodyData,
-  getBodyMeta,
   getObjectArrayField,
   getObjectField,
   getStringField,
@@ -129,8 +128,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     const data = getBodyData(res.body);
     expect(data.window).toBe('7d');
     expect(data.metric).toBe('tokens');
-    expect(data.entries).toEqual([]);
-    expect(getBodyMeta(res.body).nextCursor).toBeNull();
+    expect(Array.isArray(data.entries)).toBe(true);
     expect(data.viewer).toBeUndefined();
   });
 
@@ -139,7 +137,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
   });
 
-  it('me defaults leaderboard off; opt-in toggle works', async () => {
+  it('me defaults leaderboard on; opt-out toggle works', async () => {
     const { accessToken } = await registerUser('lbme');
 
     const me1 = await request(baseUrl)
@@ -147,31 +145,30 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
 
-    expect(getObjectField(getBodyData(me1.body), 'leaderboard')).toEqual({
-      optIn: false,
-      optedInAt: null,
-    });
+    const lb1 = getObjectField(getBodyData(me1.body), 'leaderboard');
+    expect(lb1.optIn).toBe(true);
+    expect(typeof lb1.optedInAt).toBe('string');
 
     const me2 = await request(baseUrl)
-      .patch('/v1/me')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .send({ leaderboard: { optIn: true } })
-      .expect(200);
-
-    const lb = getObjectField(getBodyData(me2.body), 'leaderboard');
-    expect(lb.optIn).toBe(true);
-    expect(typeof lb.optedInAt).toBe('string');
-
-    const me3 = await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ leaderboard: { optIn: false } })
       .expect(200);
 
-    expect(getObjectField(getBodyData(me3.body), 'leaderboard')).toEqual({
+    expect(getObjectField(getBodyData(me2.body), 'leaderboard')).toEqual({
       optIn: false,
       optedInAt: null,
     });
+
+    const me3 = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ leaderboard: { optIn: true } })
+      .expect(200);
+
+    const lb3 = getObjectField(getBodyData(me3.body), 'leaderboard');
+    expect(lb3.optIn).toBe(true);
+    expect(typeof lb3.optedInAt).toBe('string');
   });
 
   it('lists only opted-in users with score; opt-out removes; viewer statuses', async () => {
@@ -183,7 +180,14 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${a.accessToken}`)
-      .send({ profile: { displayName: 'Alice' }, leaderboard: { optIn: true } })
+      .send({
+        profile: {
+          displayName: 'Alice',
+          githubUrl: 'alice',
+          websiteUrl: 'alice.example.com',
+        },
+        leaderboard: { optIn: true },
+      })
       .expect(200);
 
     await request(baseUrl)
@@ -192,11 +196,11 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
       .send({ profile: { displayName: 'Bob' }, leaderboard: { optIn: true } })
       .expect(200);
 
-    // C opted out (default) with high usage — must not appear
+    // C explicitly opted out with high usage — must not appear
     await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${c.accessToken}`)
-      .send({ profile: { displayName: 'Carol' } })
+      .send({ profile: { displayName: 'Carol' }, leaderboard: { optIn: false } })
       .expect(200);
 
     await push(
@@ -206,8 +210,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'claude-code',
           date: today,
-          totalTokens: 1000,
-          models: [{ rawModelId: 'sonnet', totalTokens: 1000 }],
+          totalTokens: 10_000_000_000,
+          models: [{ rawModelId: 'sonnet', totalTokens: 10_000_000_000 }],
         }),
       ],
       1,
@@ -220,8 +224,8 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
         factForDate({
           sourceKey: 'codex',
           date: today,
-          totalTokens: 500,
-          models: [{ rawModelId: 'gpt', totalTokens: 500 }],
+          totalTokens: 9_000_000_000,
+          models: [{ rawModelId: 'gpt', totalTokens: 9_000_000_000 }],
         }),
       ],
       1,
@@ -230,7 +234,7 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     await push(
       c.accessToken,
       c.clientDeviceId,
-      [factForDate({ sourceKey: 'claude-code', date: today, totalTokens: 99999 })],
+      [factForDate({ sourceKey: 'claude-code', date: today, totalTokens: 999_999_999 })],
       1,
     ).expect(200);
 
@@ -242,10 +246,17 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
     expect(ids).toContain(b.userId);
     expect(ids).not.toContain(c.userId);
 
-    const ranks = entries.map((e) => e.rank);
-    expect(ranks[0]).toBe(1);
-    expect(getStringField(entries[0] ?? {}, 'displayName')).toBe('Alice');
-    expect(getStringField(entries[1] ?? {}, 'displayName')).toBe('Bob');
+    const aliceEntry = entries.find((e) => getStringField(e, 'userId') === a.userId);
+    expect(aliceEntry).toBeDefined();
+    expect(getStringField(aliceEntry ?? {}, 'displayName')).toBe('Alice');
+    expect(getStringField(aliceEntry ?? {}, 'githubUrl')).toBe('https://github.com/alice');
+    expect(getStringField(aliceEntry ?? {}, 'websiteUrl')).toBe('https://alice.example.com');
+
+    const bobEntry = entries.find((e) => getStringField(e, 'userId') === b.userId);
+    expect(bobEntry).toBeDefined();
+    expect(getStringField(bobEntry ?? {}, 'displayName')).toBe('Bob');
+    expect(bobEntry?.githubUrl).toBeNull();
+    expect(bobEntry?.websiteUrl).toBeNull();
 
     // No email field on entries
     for (const e of entries) {
@@ -261,7 +272,10 @@ describeAuthE2eSuite('Leaderboard (e2e)', (harness: AuthE2eHarness) => {
 
     const viewer = getObjectField(getBodyData(withViewer.body), 'viewer');
     expect(viewer.status).toBe('ranked');
-    expect(getObjectField(viewer, 'entry').rank).toBe(1);
+    const viewerEntry = getObjectField(viewer, 'entry');
+    expect(viewerEntry.rank).toBe(1);
+    expect(getStringField(viewerEntry, 'githubUrl')).toBe('https://github.com/alice');
+    expect(getStringField(viewerEntry, 'websiteUrl')).toBe('https://alice.example.com');
 
     // Invalid token still 200, no viewer
     const badToken = await request(baseUrl)

@@ -754,6 +754,31 @@ paths:
         - UNAUTHORIZED
         - IDEMPOTENCY_IN_PROGRESS
         - INTERNAL
+  /v1/users/by-username/{username}:
+    get:
+      description: Returns the public profile and usage statistics for an opted-in
+        user. Returns 404 Not Found if the user does not exist or is opted out
+        of the public leaderboard.
+      operationId: users.publicProfile.getByUsername
+      parameters:
+        - name: username
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicProfileEnvelopeDto"
+      summary: Get public profile by username handle
+      tags:
+        - Users
+      x-error-codes:
+        - NOT_FOUND
+        - INTERNAL
   /v1/sync/devices/{clientDeviceId}:
     put:
       description: Upserts this desktop install as a sync device for the authenticated
@@ -1339,6 +1364,20 @@ components:
           type: string
           example: Alighieri
           nullable: true
+        username:
+          type: string
+          example: dante
+          nullable: true
+        githubUrl:
+          type: string
+          example: https://github.com/dante
+          nullable: true
+          maxLength: 255
+        websiteUrl:
+          type: string
+          example: https://dante.example.com
+          nullable: true
+          maxLength: 255
     MeLeaderboardDto:
       type: object
       properties:
@@ -1807,6 +1846,22 @@ components:
           nullable: true
           minLength: 1
           maxLength: 100
+        username:
+          type: string
+          example: dante
+          nullable: true
+          minLength: 3
+          maxLength: 30
+        githubUrl:
+          type: string
+          example: https://github.com/dante
+          nullable: true
+          maxLength: 255
+        websiteUrl:
+          type: string
+          example: https://dante.example.com
+          nullable: true
+          maxLength: 255
     PatchMeLeaderboardDto:
       type: object
       properties:
@@ -1915,6 +1970,109 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/ProfileImageUrlDto"
+      required:
+        - data
+    PublicProfileToolItemDto:
+      type: object
+      properties:
+        sourceKey:
+          type: string
+          example: claude-code
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 90000000
+      required:
+        - sourceKey
+        - totalTokens
+    PublicProfileModelItemDto:
+      type: object
+      properties:
+        modelIdentityKey:
+          type: string
+          example: claude-sonnet-4
+        displayName:
+          type: string
+          nullable: true
+          example: Claude Sonnet 4
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 80000000
+      required:
+        - modelIdentityKey
+        - totalTokens
+    PublicProfileCalendarDayDto:
+      type: object
+      properties:
+        date:
+          type: string
+          example: 2026-07-25
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 1500000
+      required:
+        - date
+        - totalTokens
+    PublicProfileDto:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 3d2c7b2a-2dd6-46a5-8f8e-3b5de8a5b0f0
+        displayName:
+          type: string
+          nullable: true
+          example: Dante
+        username:
+          type: string
+          nullable: true
+          example: dante
+        githubUrl:
+          type: string
+          nullable: true
+          example: https://github.com/dante
+        websiteUrl:
+          type: string
+          nullable: true
+          example: https://dante.example.com
+        joinedAt:
+          type: string
+          example: 2026-01-01T00:00:00.000Z
+          format: date-time
+        totalTokens:
+          oneOf:
+            - type: number
+            - type: string
+          example: 170000000
+        topTools:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfileToolItemDto"
+        topModels:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfileModelItemDto"
+        activityCalendar:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfileCalendarDayDto"
+      required:
+        - id
+        - joinedAt
+        - totalTokens
+        - topTools
+        - topModels
+        - activityCalendar
+    PublicProfileEnvelopeDto:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicProfileDto"
       required:
         - data
     UpsertSyncDeviceRequestDto:
@@ -3066,10 +3224,25 @@ components:
         displayName:
           type: string
           example: Ahmad Fikril
+        username:
+          type: string
+          nullable: true
+          example: dante
+          description: Public handle/username when provided by the user.
         avatarUrl:
           type: string
           nullable: true
           description: Public avatar URL when available; null in v1 (auth-only images).
+        githubUrl:
+          type: string
+          nullable: true
+          example: https://github.com/username
+          description: Public GitHub URL when provided by the user.
+        websiteUrl:
+          type: string
+          nullable: true
+          example: https://example.com
+          description: Public website URL when provided by the user.
         totalTokens:
           oneOf:
             - type: number

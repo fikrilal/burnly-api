@@ -23,6 +23,8 @@ import {
   provideSystemClockToken,
 } from '../../../platform/di/app-service.provider';
 
+import { UsersPublicProfileController } from './http/users-public-profile.controller';
+
 @Module({
   imports: [
     PrismaModule,
@@ -32,7 +34,12 @@ import {
     QueueModule,
     RedisModule,
   ],
-  controllers: [MeController, ProfileImageController, UserAccountDeletionController],
+  controllers: [
+    MeController,
+    ProfileImageController,
+    UserAccountDeletionController,
+    UsersPublicProfileController,
+  ],
   providers: [
     PrismaUsersRepository,
     PrismaProfileImageRepository,

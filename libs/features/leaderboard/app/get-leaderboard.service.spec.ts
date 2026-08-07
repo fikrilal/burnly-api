@@ -74,6 +74,9 @@ describe('GetLeaderboardService', () => {
         displayName: 'Alpha',
         givenName: null,
         familyName: null,
+        username: 'alpha',
+        githubUrl: 'https://github.com/alpha',
+        websiteUrl: 'https://alpha.example.com',
         leaderboardOptIn: true,
       },
       {
@@ -81,6 +84,9 @@ describe('GetLeaderboardService', () => {
         displayName: null,
         givenName: 'Beta',
         familyName: 'User',
+        username: null,
+        githubUrl: null,
+        websiteUrl: null,
         leaderboardOptIn: true,
       },
     ];
@@ -115,6 +121,7 @@ describe('GetLeaderboardService', () => {
     expect(res.entries[0]).toMatchObject({
       rank: 1,
       displayName: 'Alpha',
+      username: 'alpha',
       totalTokens: 200,
       avatarUrl: null,
     });
@@ -122,6 +129,7 @@ describe('GetLeaderboardService', () => {
     expect(res.entries[1]).toMatchObject({
       rank: 2,
       displayName: 'Beta User',
+      username: null,
       totalTokens: 100,
     });
   });
@@ -136,6 +144,9 @@ describe('GetLeaderboardService', () => {
             displayName: 'V',
             givenName: null,
             familyName: null,
+            username: null,
+            githubUrl: null,
+            websiteUrl: null,
             leaderboardOptIn: false,
           },
         ],
@@ -157,6 +168,9 @@ describe('GetLeaderboardService', () => {
             displayName: 'Champ',
             givenName: null,
             familyName: null,
+            username: null,
+            githubUrl: null,
+            websiteUrl: null,
             leaderboardOptIn: true,
           },
         ],

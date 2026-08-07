@@ -36,7 +36,10 @@ export type LeaderboardEntryView = Readonly<{
   rank: number;
   userId: string;
   displayName: string;
+  username: string | null;
   avatarUrl: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
   totalTokens: number | string;
   tools: ReadonlyArray<LeaderboardToolView>;
   models: ReadonlyArray<LeaderboardModelView>;
@@ -237,7 +240,10 @@ export class GetLeaderboardService {
           },
           row.userId,
         ),
+        username: profile?.username ?? null,
         avatarUrl: null,
+        githubUrl: profile?.githubUrl ?? null,
+        websiteUrl: profile?.websiteUrl ?? null,
         totalTokens: bigintToJsonNumber(row.totalTokens),
         tools: toolsSlice.items.map((t) => ({
           sourceKey: t.sourceKey,
@@ -330,7 +336,10 @@ export class GetLeaderboardService {
         },
         userId,
       ),
+      username: profile.username,
       avatarUrl: null,
+      githubUrl: profile.githubUrl,
+      websiteUrl: profile.websiteUrl,
       totalTokens: bigintToJsonNumber(score),
       tools: toolsSlice.items.map((t) => ({
         sourceKey: t.sourceKey,

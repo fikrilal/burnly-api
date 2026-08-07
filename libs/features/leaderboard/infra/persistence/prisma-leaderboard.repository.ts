@@ -22,6 +22,9 @@ type ProfileRaw = Readonly<{
   displayName: string | null;
   givenName: string | null;
   familyName: string | null;
+  username: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
   leaderboardOptIn: boolean;
 }>;
 
@@ -79,6 +82,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         INNER JOIN "UserProfile" p ON p."userId" = f."userId"
         WHERE p."leaderboardOptIn" = true
           AND u.status = 'ACTIVE'::"UserStatus"
+          AND u."deletionRequestedAt" IS NULL
           AND f."recordState" = 'active'::"UsageRecordState"
           ${dateFilter}
         GROUP BY f."userId"
@@ -110,6 +114,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
       WHERE f."userId" = ${userId}::uuid
         AND p."leaderboardOptIn" = true
         AND u.status = 'ACTIVE'::"UserStatus"
+        AND u."deletionRequestedAt" IS NULL
         AND f."recordState" = 'active'::"UsageRecordState"
         ${dateFilter}
     `;
@@ -139,6 +144,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         INNER JOIN "UserProfile" p ON p."userId" = f."userId"
         WHERE p."leaderboardOptIn" = true
           AND u.status = 'ACTIVE'::"UserStatus"
+          AND u."deletionRequestedAt" IS NULL
           AND f."recordState" = 'active'::"UsageRecordState"
           ${dateFilter}
         GROUP BY f."userId"
@@ -169,6 +175,9 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         displayName: true,
         givenName: true,
         familyName: true,
+        username: true,
+        githubUrl: true,
+        websiteUrl: true,
         leaderboardOptIn: true,
       },
     });
@@ -179,6 +188,9 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         displayName: r.displayName,
         givenName: r.givenName,
         familyName: r.familyName,
+        username: r.username,
+        githubUrl: r.githubUrl,
+        websiteUrl: r.websiteUrl,
         leaderboardOptIn: r.leaderboardOptIn,
       }),
     );
@@ -290,6 +302,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
       INNER JOIN "UserProfile" p ON p."userId" = f."userId"
       WHERE p."leaderboardOptIn" = true
         AND u.status = 'ACTIVE'::"UserStatus"
+        AND u."deletionRequestedAt" IS NULL
         AND f."recordState" = 'active'::"UsageRecordState"
     `;
 

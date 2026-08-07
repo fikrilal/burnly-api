@@ -6,6 +6,7 @@ import type {
   LeaderboardSettingsRecord,
   LeaderboardSettingsView,
   MeView,
+  PublicProfileRecord,
   UpdateMePatch,
   UserProfileRecord,
   UserRecord,
@@ -19,10 +20,13 @@ const EMPTY_PROFILE: UserProfileRecord = {
   displayName: null,
   givenName: null,
   familyName: null,
+  username: null,
+  githubUrl: null,
+  websiteUrl: null,
 };
 
 const DEFAULT_LEADERBOARD: LeaderboardSettingsRecord = {
-  optIn: false,
+  optIn: true,
   optedInAt: null,
 };
 
@@ -41,6 +45,29 @@ export class UsersService {
     this.assertUserNotDeleted(user);
 
     return this.toMeView(user);
+  }
+
+  async getPublicProfileByUsername(username: string): Promise<PublicProfileRecord> {
+    const user = await this.users.findByUsername(username);
+    if (!user || user.status === 'DELETED' || !user.leaderboard.optIn) {
+      throw new UserNotFoundError();
+    }
+
+    const stats = await this.users.getPublicProfileStats(user.id);
+    const profile = user.profile ?? EMPTY_PROFILE;
+
+    return {
+      id: user.id,
+      displayName: profile.displayName,
+      username: profile.username,
+      githubUrl: profile.githubUrl,
+      websiteUrl: profile.websiteUrl,
+      joinedAt: user.createdAt.toISOString(),
+      totalTokens: stats.totalTokens,
+      topTools: stats.topTools,
+      topModels: stats.topModels,
+      activityCalendar: stats.activityCalendar,
+    };
   }
 
   async updateMe(userId: string, patch: UpdateMePatch): Promise<MeView> {

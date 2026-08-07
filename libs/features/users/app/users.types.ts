@@ -7,6 +7,9 @@ export type UserProfileRecord = Readonly<{
   displayName: string | null;
   givenName: string | null;
   familyName: string | null;
+  username: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
 }>;
 
 export type LeaderboardSettingsRecord = Readonly<{
@@ -23,6 +26,38 @@ export type UpdateMeProfilePatch = Readonly<{
   displayName?: string | null;
   givenName?: string | null;
   familyName?: string | null;
+  username?: string | null;
+  githubUrl?: string | null;
+  websiteUrl?: string | null;
+}>;
+
+export type PublicProfileToolItem = Readonly<{
+  sourceKey: string;
+  totalTokens: bigint;
+}>;
+
+export type PublicProfileModelItem = Readonly<{
+  modelIdentityKey: string;
+  displayName: string | null;
+  totalTokens: bigint;
+}>;
+
+export type PublicProfileCalendarDay = Readonly<{
+  date: string;
+  totalTokens: bigint;
+}>;
+
+export type PublicProfileRecord = Readonly<{
+  id: string;
+  displayName: string | null;
+  username: string | null;
+  githubUrl: string | null;
+  websiteUrl: string | null;
+  joinedAt: string;
+  totalTokens: bigint;
+  topTools: ReadonlyArray<PublicProfileToolItem>;
+  topModels: ReadonlyArray<PublicProfileModelItem>;
+  activityCalendar: ReadonlyArray<PublicProfileCalendarDay>;
 }>;
 
 export type UpdateMeLeaderboardPatch = Readonly<{
@@ -44,6 +79,7 @@ export type UserRecord = Readonly<{
   email: string;
   emailVerifiedAt: Date | null;
   status: UserStatus;
+  createdAt: Date;
   deletionRequestedAt: Date | null;
   deletionScheduledFor: Date | null;
   authMethods: ReadonlyArray<AuthMethod>;

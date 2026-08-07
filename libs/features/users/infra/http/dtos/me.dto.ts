@@ -9,6 +9,8 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUrl,
+  Matches,
   MaxLength,
   ValidateNested,
   registerDecorator,
@@ -18,9 +20,61 @@ import {
 import { AUTH_METHOD_VALUES } from '../../../../../shared/auth/auth-method';
 
 const MAX_PROFILE_FIELD_LENGTH = 100;
+const MAX_URL_FIELD_LENGTH = 255;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function transformWebsiteUrl({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  let urlString = trimmed;
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    urlString = `https://${trimmed}`;
+  }
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return urlString;
+    }
+  } catch {
+    // Ignore URL parse error; return trimmed so validator fails
+  }
+  return trimmed;
+}
+
+function transformGithubUrl({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+
+  let raw = trimmed;
+  if (raw.startsWith('@')) {
+    raw = raw.slice(1);
+  }
+  if (raw.startsWith('https://')) {
+    raw = raw.slice(8);
+  } else if (raw.startsWith('http://')) {
+    raw = raw.slice(7);
+  }
+  if (raw.startsWith('www.github.com/')) {
+    raw = raw.slice(15);
+  } else if (raw.startsWith('github.com/')) {
+    raw = raw.slice(11);
+  }
+  if (raw.endsWith('/')) {
+    raw = raw.slice(0, -1);
+  }
+
+  const githubUserRegex = /^[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/;
+  if (githubUserRegex.test(raw)) {
+    return `https://github.com/${raw}`;
+  }
+  return trimmed;
 }
 
 function getConstraintFields(args: ValidationArguments): ReadonlyArray<string> {
@@ -76,6 +130,52 @@ function AtLeastOneOfRoot(fields: ReadonlyArray<string>, validationOptions?: Val
   };
 }
 
+const RESERVED_USERNAMES = new Set([
+  'admin',
+  'api',
+  'login',
+  'register',
+  'dashboard',
+  'settings',
+  'leaderboard',
+  'reports',
+  'download',
+  'devices',
+  'profile',
+  'auth',
+  'null',
+  'undefined',
+]);
+
+export function transformUsername({ value }: { value: unknown }): unknown {
+  if (value === null || value === undefined) return value;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === '') return null;
+  return trimmed;
+}
+
+function IsNotReservedUsername(validationOptions?: ValidationOptions) {
+  return (target: object, propertyName: string) => {
+    registerDecorator({
+      name: 'isNotReservedUsername',
+      target: target.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: unknown): boolean {
+          if (value === null || value === undefined) return true;
+          if (typeof value !== 'string') return false;
+          return !RESERVED_USERNAMES.has(value.toLowerCase());
+        },
+        defaultMessage(args: ValidationArguments): string {
+          return `username '${String(args.value)}' is reserved and cannot be used`;
+        },
+      },
+    });
+  };
+}
+
 export class MeProfileDto {
   @ApiPropertyOptional({
     type: String,
@@ -102,6 +202,31 @@ export class MeProfileDto {
   @IsOptional()
   @IsString()
   familyName!: string | null;
+
+  @ApiPropertyOptional({ type: String, example: 'dante', nullable: true })
+  @IsOptional()
+  @IsString()
+  username!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'https://github.com/dante',
+    nullable: true,
+    maxLength: MAX_URL_FIELD_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  githubUrl!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'https://dante.example.com',
+    nullable: true,
+    maxLength: MAX_URL_FIELD_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  websiteUrl!: string | null;
 }
 
 export class MeLeaderboardDto {
@@ -222,6 +347,54 @@ export class PatchMeProfileDto {
   @IsNotEmpty()
   @MaxLength(MAX_PROFILE_FIELD_LENGTH)
   familyName?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'dante',
+    nullable: true,
+    minLength: 3,
+    maxLength: 30,
+  })
+  @Transform(transformUsername)
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-z0-9_-]{3,30}$/, {
+    message:
+      'username must be 3 to 30 characters long and contain only lowercase letters, numbers, hyphens, or underscores',
+  })
+  @IsNotReservedUsername()
+  username?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'https://github.com/dante',
+    nullable: true,
+    maxLength: MAX_URL_FIELD_LENGTH,
+  })
+  @Transform(transformGithubUrl)
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_URL_FIELD_LENGTH)
+  @Matches(/^https:\/\/github\.com\/[a-zA-Z0-9](?:[a-zA-Z0-9]|-(?=[a-zA-Z0-9])){0,38}$/, {
+    message: 'githubUrl must be a valid GitHub username or URL',
+  })
+  githubUrl?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: 'https://dante.example.com',
+    nullable: true,
+    maxLength: MAX_URL_FIELD_LENGTH,
+  })
+  @Transform(transformWebsiteUrl)
+  @IsOptional()
+  @IsString()
+  @MaxLength(MAX_URL_FIELD_LENGTH)
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: 'websiteUrl must be a valid HTTP or HTTPS URL' },
+  )
+  websiteUrl?: string | null;
 }
 
 export class PatchMeLeaderboardDto {
@@ -242,9 +415,12 @@ export class PatchMeRequestDto {
   @IsObject()
   @ValidateNested()
   @Type(() => PatchMeProfileDto)
-  @AtLeastOneDefined(['displayName', 'givenName', 'familyName'], {
-    message: 'At least one profile field must be provided',
-  })
+  @AtLeastOneDefined(
+    ['displayName', 'givenName', 'familyName', 'username', 'githubUrl', 'websiteUrl'],
+    {
+      message: 'At least one profile field must be provided',
+    },
+  )
   profile?: PatchMeProfileDto;
 
   @ApiPropertyOptional({ type: PatchMeLeaderboardDto })

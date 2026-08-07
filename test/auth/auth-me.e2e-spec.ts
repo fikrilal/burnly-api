@@ -114,8 +114,15 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       emailVerified: false,
       roles: ['USER'],
       authMethods: ['PASSWORD'],
-      profile: { profileImageFileId: null, displayName: null, givenName: null, familyName: null },
-      leaderboard: { optIn: false, optedInAt: null },
+      profile: {
+        profileImageFileId: null,
+        displayName: null,
+        givenName: null,
+        familyName: null,
+        githubUrl: null,
+        websiteUrl: null,
+      },
+      leaderboard: { optIn: true, optedInAt: expect.any(String) },
     });
   });
 
@@ -554,6 +561,64 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       displayName: 'Dante',
       givenName: 'Dante',
       familyName: 'Alighieri',
+      username: null,
+      githubUrl: null,
+      websiteUrl: null,
+    });
+  });
+
+  it('register -> PATCH /v1/me normalizes githubUrl and websiteUrl and validates invalid URLs', async () => {
+    const email = uniqueEmail('auth');
+    const password = 'correct-horse-battery-staple';
+
+    const registerRes = await request(baseUrl)
+      .post('/v1/auth/password/register')
+      .send({ email, password })
+      .expect(200);
+
+    const reg = getAuthResponse(registerRes.body);
+
+    const patchRes = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({
+        profile: {
+          githubUrl: ' @dante-alighieri ',
+          websiteUrl: ' dante.example.com ',
+        },
+      })
+      .expect(200);
+
+    expect(patchRes.body.data.profile).toMatchObject({
+      githubUrl: 'https://github.com/dante-alighieri',
+      websiteUrl: 'https://dante.example.com',
+    });
+
+    const badWebsite = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { websiteUrl: 'javascript:alert(1)' } })
+      .expect(400);
+
+    expect(badWebsite.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    const badGithub = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { githubUrl: 'invalid/username/extra' } })
+      .expect(400);
+
+    expect(badGithub.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    const unsets = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ profile: { githubUrl: '', websiteUrl: null } })
+      .expect(200);
+
+    expect(unsets.body.data.profile).toMatchObject({
+      githubUrl: null,
+      websiteUrl: null,
     });
   });
 
@@ -627,6 +692,8 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
       displayName: null,
       givenName: null,
       familyName: null,
+      githubUrl: null,
+      websiteUrl: null,
     });
   });
 
@@ -659,27 +726,110 @@ describeAuthE2eSuite('Auth Me Profile Sessions (e2e)', (harness) => {
     );
   });
 
-  it('PATCH /v1/me rejects whitespace-only strings', async () => {
+  it('PATCH /v1/me validates username, enforces reserved handle guard, and catches USERNAME_TAKEN', async () => {
+    const email1 = uniqueEmail('auth1');
+    const email2 = uniqueEmail('auth2');
+    const password = 'correct-horse-battery-staple';
+    const targetHandle = `usr_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
+
+    const reg1Res = await request(baseUrl)
+      .post('/v1/auth/password/register')
+      .send({ email: email1, password })
+      .expect(200);
+    const reg1 = getAuthResponse(reg1Res.body);
+
+    const reg2Res = await request(baseUrl)
+      .post('/v1/auth/password/register')
+      .send({ email: email2, password })
+      .expect(200);
+    const reg2 = getAuthResponse(reg2Res.body);
+
+    // Reserved handle check
+    const reservedRes = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg1.accessToken}`)
+      .send({ profile: { username: 'admin' } })
+      .expect(400);
+    expect(reservedRes.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    // Format check (invalid characters)
+    const invalidRes = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg1.accessToken}`)
+      .send({ profile: { username: 'user@name' } })
+      .expect(400);
+    expect(invalidRes.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
+
+    // Set valid username with whitespace & uppercase -> normalized to lowercase
+    const patch1 = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg1.accessToken}`)
+      .send({ profile: { username: `  ${targetHandle.toUpperCase()} ` } })
+      .expect(200);
+    expect(patch1.body.data.profile.username).toBe(targetHandle.toLowerCase());
+
+    // Duplicate username attempt from user 2 -> 409 USERNAME_TAKEN
+    const conflictRes = await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg2.accessToken}`)
+      .send({ profile: { username: targetHandle } })
+      .expect(409);
+    expect(conflictRes.headers['content-type']).toContain('application/problem+json');
+    expect(conflictRes.body).toMatchObject({ code: 'USERNAME_TAKEN', status: 409 });
+  });
+
+  it('GET /v1/users/by-username/:username returns public profile when opted in and 404 when opted out', async () => {
     const email = uniqueEmail('auth');
     const password = 'correct-horse-battery-staple';
+    const publicHandle = `pub_${randomUUID().replace(/-/g, '').slice(0, 10)}`;
 
-    const registerRes = await request(baseUrl)
+    const regRes = await request(baseUrl)
       .post('/v1/auth/password/register')
       .send({ email, password })
       .expect(200);
+    const reg = getAuthResponse(regRes.body);
 
-    const reg = getAuthResponse(registerRes.body);
-
-    const res = await request(baseUrl)
+    // Set profile username
+    await request(baseUrl)
       .patch('/v1/me')
       .set('Authorization', `Bearer ${reg.accessToken}`)
-      .send({ profile: { displayName: '   ' } })
-      .expect(400);
+      .send({
+        profile: {
+          displayName: 'Dante Alighieri',
+          username: publicHandle,
+          githubUrl: 'https://github.com/dante',
+        },
+      })
+      .expect(200);
 
-    expect(res.headers['content-type']).toContain('application/problem+json');
-    expect(res.body).toMatchObject({ code: 'VALIDATION_FAILED', status: 400 });
-    expect(res.body.errors).toEqual(
-      expect.arrayContaining([expect.objectContaining({ field: 'profile.displayName' })]),
-    );
+    // Opted in (default) -> 200 OK with public profile (case-insensitive handle match)
+    const publicProfileRes = await request(baseUrl)
+      .get(`/v1/users/by-username/${publicHandle.toUpperCase()}`)
+      .expect(200);
+
+    expect(publicProfileRes.body.data).toMatchObject({
+      id: getStringField(reg.user, 'id'),
+      displayName: 'Dante Alighieri',
+      username: publicHandle.toLowerCase(),
+      githubUrl: 'https://github.com/dante',
+      websiteUrl: null,
+      totalTokens: 0,
+      topTools: [],
+      topModels: [],
+      activityCalendar: [],
+    });
+    expect(typeof publicProfileRes.body.data.joinedAt).toBe('string');
+
+    // Opt out -> 404 Not Found
+    await request(baseUrl)
+      .patch('/v1/me')
+      .set('Authorization', `Bearer ${reg.accessToken}`)
+      .send({ leaderboard: { optIn: false } })
+      .expect(200);
+
+    const optedOutRes = await request(baseUrl)
+      .get(`/v1/users/by-username/${publicHandle}`)
+      .expect(404);
+    expect(optedOutRes.headers['content-type']).toContain('application/problem+json');
   });
 });
