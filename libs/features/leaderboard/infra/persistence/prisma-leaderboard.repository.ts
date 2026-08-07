@@ -82,6 +82,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         INNER JOIN "UserProfile" p ON p."userId" = f."userId"
         WHERE p."leaderboardOptIn" = true
           AND u.status = 'ACTIVE'::"UserStatus"
+          AND u."deletionRequestedAt" IS NULL
           AND f."recordState" = 'active'::"UsageRecordState"
           ${dateFilter}
         GROUP BY f."userId"
@@ -113,6 +114,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
       WHERE f."userId" = ${userId}::uuid
         AND p."leaderboardOptIn" = true
         AND u.status = 'ACTIVE'::"UserStatus"
+        AND u."deletionRequestedAt" IS NULL
         AND f."recordState" = 'active'::"UsageRecordState"
         ${dateFilter}
     `;
@@ -142,6 +144,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
         INNER JOIN "UserProfile" p ON p."userId" = f."userId"
         WHERE p."leaderboardOptIn" = true
           AND u.status = 'ACTIVE'::"UserStatus"
+          AND u."deletionRequestedAt" IS NULL
           AND f."recordState" = 'active'::"UsageRecordState"
           ${dateFilter}
         GROUP BY f."userId"
@@ -299,6 +302,7 @@ export class PrismaLeaderboardRepository implements LeaderboardRepository {
       INNER JOIN "UserProfile" p ON p."userId" = f."userId"
       WHERE p."leaderboardOptIn" = true
         AND u.status = 'ACTIVE'::"UserStatus"
+        AND u."deletionRequestedAt" IS NULL
         AND f."recordState" = 'active'::"UsageRecordState"
     `;
 

@@ -161,6 +161,7 @@ export class PrismaUsersRepository implements UsersRepository {
     const user = await client.user.findFirst({
       where: {
         status: { not: PrismaUserStatus.DELETED },
+        deletionRequestedAt: null,
         profile: { username: { equals: username, mode: 'insensitive' } },
       },
       select: USER_WITH_PROFILE_SELECT,
