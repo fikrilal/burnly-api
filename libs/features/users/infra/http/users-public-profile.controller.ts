@@ -1,5 +1,6 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ProblemException } from '../../../../platform/http/errors/problem.exception';
 import { UserNotFoundError } from '../../app/users.errors';
 import { UsersService } from '../../app/users.service';
 import { Public } from '../../../../platform/auth/public.decorator';
@@ -54,7 +55,7 @@ export class UsersPublicProfileController {
         err instanceof UserNotFoundError ||
         (err instanceof Error && err.name === 'UserNotFoundError')
       ) {
-        throw new NotFoundException('User not found or profile is not public');
+        throw ProblemException.notFound('User not found or profile is not public');
       }
       throw err;
     }
