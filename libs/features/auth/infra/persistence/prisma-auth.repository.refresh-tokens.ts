@@ -82,6 +82,7 @@ export async function rotateRefreshToken(
   tokenHash: string,
   newTokenHash: string,
   now: Date,
+  newExpiresAt: Date,
   session?: SessionSeenMetadata,
 ): Promise<RefreshRotationResult> {
   const client = prisma.getClient();
@@ -137,7 +138,7 @@ export async function rotateRefreshToken(
       const next = await tx.refreshToken.create({
         data: {
           tokenHash: newTokenHash,
-          expiresAt: existing.expiresAt,
+          expiresAt: newExpiresAt,
           sessionId,
         },
         select: { id: true },
@@ -156,6 +157,7 @@ export async function rotateRefreshToken(
         where: { id: sessionId },
         data: {
           lastSeenAt: now,
+          expiresAt: newExpiresAt,
           ...(session && session.ip !== undefined ? { ip: session.ip } : {}),
           ...(session && session.userAgent !== undefined ? { userAgent: session.userAgent } : {}),
         },
@@ -171,7 +173,7 @@ export async function rotateRefreshToken(
     throw err;
   }
 
-  return { kind: 'ok', sessionId, user, sessionExpiresAt: existing.session.expiresAt };
+  return { kind: 'ok', sessionId, user, sessionExpiresAt: newExpiresAt };
 }
 
 export async function revokeSessionByRefreshTokenHash(

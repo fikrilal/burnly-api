@@ -189,6 +189,7 @@ export interface AuthRepository {
     tokenHash: string,
     newTokenHash: string,
     now: Date,
+    newExpiresAt: Date,
     session?: SessionSeenMetadata,
   ): Promise<RefreshRotationResult>;
 

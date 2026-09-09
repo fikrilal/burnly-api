@@ -20,6 +20,7 @@ Refresh tokens will be:
 - **Opaque** (random, high-entropy strings), not JWTs.
 - **Single-use** via rotation:
   - every successful refresh revokes the presented refresh token and issues a new one
+  - each refresh extends the expiration of both the replacement refresh token and the parent session (sliding window from last activity)
 - **Server-revocable**:
   - only a hash of the refresh token is stored server-side
   - revocation and session invalidation are enforced by server-side state

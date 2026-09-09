@@ -24,6 +24,8 @@ OIDC login links an external identity to an internal user. The service then issu
 Refresh tokens must be:
 
 - **rotated** on every successful refresh (issue a new refresh token, revoke the previous)
+- **sliding expiration**: every successful refresh extends the lifetime of both the session (`session.expiresAt`) and the replacement refresh token (`refreshToken.expiresAt`) by the configured TTL (`refreshTokenTtlSeconds`, default 30 days) from the refresh timestamp
+- **inactivity-bounded**: sessions without refresh activity for 30 consecutive days expire naturally and require re-authentication
 - **revocable** server-side (DB record)
 - **replay-detecting** (reuse of a revoked token invalidates the session / triggers safety actions)
 
