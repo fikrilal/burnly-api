@@ -26,7 +26,7 @@ jobs:
     env:
       VM_HOST: ${{ secrets.VM_HOST }}
       VM_USER: ${{ secrets.VM_USER }}
-      VM_SSH_KEY: ${{ runner.temp }}/vm_key
+      VM_SSH_KEY: /tmp/vm_key
       CI: 'true'
     steps:
       - name: Checkout
