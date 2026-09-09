@@ -5,10 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      ref:
+      target_ref:
         description: 'Git ref (branch, tag, or SHA) to deploy'
         required: false
         default: 'main'
+        type: string
 
 permissions:
   contents: read
@@ -31,7 +32,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.ref || github.sha }}
+          ref: ${{ inputs.target_ref || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v6
@@ -43,9 +44,11 @@ jobs:
         run: npm ci
 
       - name: Write VM SSH key
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
         run: |
-          echo "${{ secrets.VM_SSH_KEY }}" > "$VM_SSH_KEY"
+          printf '%s\n' "$SSH_KEY" > "$VM_SSH_KEY"
           chmod 600 "$VM_SSH_KEY"
 
       - name: Deploy (build, transfer, swap)
-        run: scripts/deploy.sh --tag "${{ github.sha }}"
+        run: scripts/deploy.sh --tag "$(git rev-parse --short HEAD)"
