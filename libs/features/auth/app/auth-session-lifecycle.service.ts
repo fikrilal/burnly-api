@@ -95,7 +95,9 @@ export class AuthSessionLifecycleService {
     const nextRefreshToken = generateRefreshToken();
     const nextHash = hashRefreshToken(nextRefreshToken);
 
-    const rotation = await this.repo.rotateRefreshToken(currentHash, nextHash, now, {
+    const newExpiresAt = sessionExpiresAtFrom(now, this.config.refreshTokenTtlSeconds);
+
+    const rotation = await this.repo.rotateRefreshToken(currentHash, nextHash, now, newExpiresAt, {
       ip: input.ip,
       userAgent: input.userAgent,
     });

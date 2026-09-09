@@ -21,10 +21,10 @@ grace period, because public queries only filter on `status`.
 
 **Recommended change:**
 
-| Surface | Current filter | Proposed filter |
-| --- | --- | --- |
-| Leaderboard (all queries) | `u.status = 'ACTIVE'` | `u.status = 'ACTIVE' AND u."deletionRequestedAt" IS NULL` |
-| Public profile `findByUsername` | `status != 'DELETED'` | `status != 'DELETED' AND deletionRequestedAt IS NULL` |
+| Surface                         | Current filter        | Proposed filter                                           |
+| ------------------------------- | --------------------- | --------------------------------------------------------- |
+| Leaderboard (all queries)       | `u.status = 'ACTIVE'` | `u.status = 'ACTIVE' AND u."deletionRequestedAt" IS NULL` |
+| Public profile `findByUsername` | `status != 'DELETED'` | `status != 'DELETED' AND deletionRequestedAt IS NULL`     |
 
 Private surfaces (`GET /v1/me`, login, refresh, dashboard/reports reads) are
 **unchanged**: a pending-deletion account can still sign in and use the product
@@ -131,7 +131,7 @@ automatically — no extra work.
   3. `POST /v1/me/account-deletion/cancel` → leaderboard + public profile
      restored.
 - Confirm private flows still work during the grace period (login + `GET
-  /v1/me` in the existing deletion e2e suite).
+/v1/me` in the existing deletion e2e suite).
 - OpenAPI: no contract change (response shapes unchanged); optionally note the
   behavior in the endpoint description.
 

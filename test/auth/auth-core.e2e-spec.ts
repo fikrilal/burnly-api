@@ -77,6 +77,58 @@ describeAuthE2eSuite('Auth Core (e2e)', (harness) => {
     expect(afterLogout.body).toMatchObject({ code: 'AUTH_SESSION_REVOKED', status: 401 });
   });
 
+  it('POST /v1/auth/refresh extends session and refresh token expiresAt (sliding window)', async () => {
+    const email = uniqueEmail('auth');
+    const password = 'correct-horse-battery-staple';
+
+    const registerRes = await request(baseUrl)
+      .post('/v1/auth/password/register')
+      .send({ email, password })
+      .expect(200);
+
+    const reg = getBodyData(registerRes.body);
+    const rawRefreshToken = getStringField(reg, 'refreshToken');
+
+    const initialSession = await prisma.session.findFirstOrThrow({
+      where: { user: { email: email.toLowerCase() } },
+      include: { refreshTokens: true },
+    });
+
+    // Artificially age the expiration to 1 hour from now to simulate 29+ days passing
+    const shortenedExpiry = new Date(Date.now() + 3600_000);
+    await prisma.session.update({
+      where: { id: initialSession.id },
+      data: { expiresAt: shortenedExpiry },
+    });
+    await prisma.refreshToken.updateMany({
+      where: { sessionId: initialSession.id },
+      data: { expiresAt: shortenedExpiry },
+    });
+
+    const beforeRefreshTime = Date.now();
+
+    await request(baseUrl)
+      .post('/v1/auth/refresh')
+      .send({ refreshToken: rawRefreshToken })
+      .expect(200);
+
+    const updatedSession = await prisma.session.findUniqueOrThrow({
+      where: { id: initialSession.id },
+      include: { refreshTokens: true },
+    });
+
+    // 29 days minimum forward buffer
+    const expectedExpiryMin = beforeRefreshTime + 29 * 24 * 3600 * 1000;
+
+    // Both session and new refresh token should be extended ~30 days out, well beyond shortenedExpiry
+    expect(updatedSession.expiresAt.getTime()).toBeGreaterThan(expectedExpiryMin);
+
+    const activeToken = updatedSession.refreshTokens.find((t) => t.revokedAt === null);
+    expect(activeToken).toBeDefined();
+    if (!activeToken) throw new Error('Expected activeToken to exist');
+    expect(activeToken.expiresAt.getTime()).toBeGreaterThan(expectedExpiryMin);
+  });
+
   it('refresh token reuse revokes the session (reuse detection)', async () => {
     const email = uniqueEmail('auth');
     const password = 'correct-horse-battery-staple';

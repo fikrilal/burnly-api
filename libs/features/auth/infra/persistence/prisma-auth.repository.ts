@@ -184,9 +184,17 @@ export class PrismaAuthRepository implements AuthRepository {
     tokenHash: string,
     newTokenHash: string,
     now: Date,
+    newExpiresAt: Date,
     session?: SessionSeenMetadata,
   ): Promise<RefreshRotationResult> {
-    return await rotateRefreshTokenImpl(this.prisma, tokenHash, newTokenHash, now, session);
+    return await rotateRefreshTokenImpl(
+      this.prisma,
+      tokenHash,
+      newTokenHash,
+      now,
+      newExpiresAt,
+      session,
+    );
   }
 
   async revokeSessionByRefreshTokenHash(tokenHash: string, now: Date): Promise<boolean> {
