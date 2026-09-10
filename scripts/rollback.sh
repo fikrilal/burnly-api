@@ -25,7 +25,7 @@ die() { echo "[rollback] error: $*" >&2; exit 1; }
 # If run locally, dispatch to the VM over SSH.
 if [ -n "${VM_HOST:-}" ] && [ -n "${VM_SSH_KEY:-}" ]; then
   log "running rollback on ${VM_USER:-azureuser}@${VM_HOST}"
-  exec ssh -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 -i "$VM_SSH_KEY" \
+  exec ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ConnectTimeout=15 -i "$VM_SSH_KEY" \
     "${VM_USER:-azureuser}@${VM_HOST}" \
     "sudo bash -s -- ${IMAGE_NAME}" < "$0"
 fi
