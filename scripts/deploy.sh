@@ -44,7 +44,7 @@ if [ -z "$VM_HOST" ] || [ -z "$VM_SSH_KEY" ] || [ ! -f "$VM_SSH_KEY" ]; then
   exit 2
 fi
 
-SSH_ARGS=(-o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 -i "$VM_SSH_KEY")
+SSH_ARGS=(-o BatchMode=yes -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -o ConnectTimeout=15 -i "$VM_SSH_KEY")
 REMOTE_SCRIPT="scripts/deploy-remote.sh"
 
 # --- helpers ----------------------------------------------------------------
